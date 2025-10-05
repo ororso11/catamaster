@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CATALEAF - 자동화 대시보드</title>
+    <link rel="stylesheet" href="dashboard.css">
+    <style>
+      
+    </style>
+</head>
+<body>
+    <header>
+        <div class="header-container">
+            <div class="logo">
+                <img src="/logo.png" alt="CATALEAF">
+                <span>CATALEAF</span>
+            </div>
+        </div>
+    </header>
+
+    <div class="dashboard-container">
+        <aside class="sidebar">
+            <div class="sidebar-menu">
+                <div class="menu-item active" data-tab="upload">
+                    <span class="icon">📤</span>
+                    <span>업로드</span>
+                </div>
+                <div class="menu-item" data-tab="preview">
+                    <span class="icon">👁️</span>
+                    <span>미리보기</span>
+                </div>
+            </div>
+        </aside>
+
+        <main class="main-content">
+            <div class="tab-content active" id="upload">
+                <!-- <div class="demo-notice">
+                    <h3>🎯 AI 기반 PDF 파싱</h3>
+                    <p>PDF를 업로드하면 서버에서 정교하게 제품을 추출하여 웹사이트를 생성합니다.</p>
+                    <div style="display: flex; gap: 15px; justify-content: center; margin-top: 20px;">
+                        <a href="mailto:contact@lightpdf.io" class="cta-button">이메일 문의</a>
+                        <a href="#" id="kakaoConsultBtn" class="cta-button" style="background: #FEE500; color: #000;">
+                            💬 카카오톡 상담
+                        </a>
+                    </div>
+                </div> -->
+
+                <div class="content-header">
+                    <h2>PDF 카탈로그 업로드</h2>
+                    <p>PDF 파일을 업로드하여 자동으로 웹사이트 생성</p>
+                </div>
+
+                <!-- PDF 규격 안내 -->
+                <div class="pdf-specs">
+                    <h3>📋 권장 PDF 규격</h3>
+                    <div class="specs-grid">
+                        <div class="spec-item">
+                            <div class="spec-icon">📐</div>
+                            <div class="spec-content">
+                                <h4>페이지 크기</h4>
+                                <p>A4 (210×297mm) 또는 US Letter 권장</p>
+                            </div>
+                        </div>
+                        <div class="spec-item">
+                            <div class="spec-icon">🖼️</div>
+                            <div class="spec-content">
+                                <h4>이미지 해상도</h4>
+                                <p>최소 300 DPI 이상 (고해상도 권장)</p>
+                            </div>
+                        </div>
+                        <div class="spec-item">
+                            <div class="spec-icon">📏</div>
+                            <div class="spec-content">
+                                <h4>제품 이미지 크기</h4>
+                                <p>최소 300×300px ~ 최대 1000×1000px</p>
+                            </div>
+                        </div>
+                        <div class="spec-item">
+                            <div class="spec-icon">📄</div>
+                            <div class="spec-content">
+                                <h4>파일 크기</h4>
+                                <p>최대 50MB (페이지당 5MB 이하 권장)</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="requirements-box">
+                        <h4>최적의 인식을 위한 권장사항</h4>
+                        <ul>
+                            <li>제품 이미지와 제품명이 세로로 배치된 레이아웃</li>
+                            <li>제품명은 이미지 바로 아래 150px 이내에 위치</li>
+                            <li>명확한 글꼴 사용 (최소 10pt 이상)</li>
+                            <li>흰색 또는 밝은 배경에 검은색 텍스트</li>
+                            <li>제품별로 충분한 여백 확보 (최소 30px)</li>
+                            <li>페이지당 3~9개 제품 배치 권장</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="upload-zone" id="uploadZone">
+                    <div class="upload-icon">📄</div>
+                    <h3>PDF 파일을 여기에 드래그하세요</h3>
+                    <p>또는 클릭하여 파일 선택 (최대 50MB)</p>
+                    <input type="file" id="fileInput" accept=".pdf" hidden>
+                    <button class="upload-btn">파일 선택</button>
+                </div>
+            </div>
+
+            <div class="tab-content" id="preview">
+                <div class="content-header">
+                    <h2>생성된 웹사이트 미리보기</h2>
+                    <p>자동 생성된 index.html과 admin.html을 확인하세요</p>
+                </div>
+
+                <div id="previewContainer">
+                    <div class="empty-state">
+                        <div class="empty-icon">🖥️</div>
+                        <p>PDF를 업로드하면 생성된 웹사이트가 여기에 표시됩니다</p>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <div id="processingStatus" style="display: none;">처리 중...</div>
+
+    <!-- 카카오톡 플로팅 버튼 -->
+    <div id="kakaoFloatingBtn" style="position: fixed; bottom: 30px; right: 30px; z-index: 9999; cursor: pointer; transition: all 0.3s;">
+        <div style="width: 60px; height: 60px; border-radius: 50%; background: #FEE500; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 12px rgba(0,0,0,0.2); font-size: 28px;">
+            💬
+        </div>
+    </div>
+
+    <script>
+        // 카카오톡 플로팅 버튼 호버 효과
+        const floatingBtn = document.getElementById('kakaoFloatingBtn');
+        floatingBtn.addEventListener('mouseenter', () => {
+            floatingBtn.style.transform = 'scale(1.1)';
+        });
+        floatingBtn.addEventListener('mouseleave', () => {
+            floatingBtn.style.transform = 'scale(1)';
+        });
+        
+        // 카카오톡 플로팅 버튼 클릭
+        floatingBtn.addEventListener('click', function() {
+            const channelUrl = 'https://pf.kakao.com/_xnRdLn/chat'; // 실제 채널 ID로 교체
+            window.open(channelUrl, '_blank', 'width=400,height=600');
+        });
+        
+    </script>
+    <script src="dashboard.js"></script>
+</body>
+</html>

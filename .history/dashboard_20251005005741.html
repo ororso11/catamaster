@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LIGHTPDF 카탈로그 자동화 체험 대시보드</title>
+    <link rel="stylesheet" href="dashboard.css">
+</head>
+<body>
+    <header>
+        <div class="header-container">
+            <div class="logo">
+                <div class="logo-icon">C</div>
+                <span>LIGHTPDF</span>
+            </div>
+            <div class="header-actions">
+                <a href="index.html" class="back-btn">← 홈으로</a>
+            </div>
+        </div>
+    </header>
+
+    <div class="dashboard-container">
+        <aside class="sidebar">
+            <div class="sidebar-menu">
+                <div class="menu-item active" data-tab="upload">
+                    <span class="icon">📤</span>
+                    <span>업로드</span>
+                </div>
+                <div class="menu-item" data-tab="catalogs">
+                    <span class="icon">📚</span>
+                    <span>카탈로그 목록</span>
+                </div>
+                <div class="menu-item" data-tab="preview">
+                    <span class="icon">👁️</span>
+                    <span>미리보기</span>
+                </div>
+                <div class="menu-item" data-tab="settings">
+                    <span class="icon">⚙️</span>
+                    <span>설정</span>
+                </div>
+            </div>
+        </aside>
+
+        <main class="main-content">
+            <div class="tab-content active" id="upload">
+                <div class="content-header">
+                    <h2>PDF 카탈로그 업로드</h2>
+                    <p>PDF 파일을 드래그하여 자동으로 웹사이트를 생성하세요</p>
+                </div>
+
+                <div class="upload-zone" id="uploadZone">
+                    <div class="upload-icon">📄</div>
+                    <h3>PDF 파일을 여기에 드래그하세요</h3>
+                    <p>또는 클릭하여 파일 선택</p>
+                    <input type="file" id="fileInput" accept=".pdf" multiple hidden>
+                    <button class="upload-btn" onclick="document.getElementById('fileInput').click()">
+                        파일 선택
+                    </button>
+                </div>
+
+                <div class="upload-stats">
+                    <div class="stat-card">
+                        <div class="stat-value" id="totalFiles">0</div>
+                        <div class="stat-label">업로드된 파일</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="totalSize">0 MB</div>
+                        <div class="stat-label">총 용량</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="generatedSites">0</div>
+                        <div class="stat-label">생성된 사이트</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="tab-content" id="catalogs">
+                <div class="content-header">
+                    <h2>카탈로그 목록</h2>
+                    <p>업로드된 카탈로그와 생성된 웹사이트를 관리하세요</p>
+                </div>
+
+                <div class="catalog-list" id="catalogList">
+                    <div class="empty-state">
+                        <div class="empty-icon">📭</div>
+                        <p>아직 업로드된 카탈로그가 없습니다</p>
+                        <button onclick="switchTab('upload')" class="btn-primary">카탈로그 업로드하기</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="tab-content" id="preview">
+                <div class="content-header">
+                    <h2>웹사이트 미리보기</h2>
+                    <p>생성된 반응형 웹사이트를 미리 확인하세요</p>
+                </div>
+
+                <div class="preview-container" id="previewContainer">
+                    <div class="empty-state">
+                        <div class="empty-icon">🖥️</div>
+                        <p>미리보기할 웹사이트가 없습니다</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="tab-content" id="settings">
+                <div class="content-header">
+                    <h2>사이트 설정</h2>
+                    <p>생성될 웹사이트의 스타일을 커스터마이징하세요</p>
+                </div>
+
+                <div class="settings-grid">
+                    <div class="setting-group">
+                        <label>회사명</label>
+                        <input type="text" class="setting-input" id="companyName" placeholder="회사명 입력">
+                    </div>
+
+                    <div class="setting-group">
+                        <label>테마 색상</label>
+                        <div class="color-options">
+                            <div class="color-option active" style="background: #000" data-color="#000"></div>
+                            <div class="color-option" style="background: #667eea" data-color="#667eea"></div>
+                            <div class="color-option" style="background: #f093fb" data-color="#f093fb"></div>
+                            <div class="color-option" style="background: #4facfe" data-color="#4facfe"></div>
+                            <div class="color-option" style="background: #43e97b" data-color="#43e97b"></div>
+                        </div>
+                    </div>
+
+                    <div class="setting-group">
+                        <label>레이아웃 스타일</label>
+                        <select class="setting-select">
+                            <option>그리드 레이아웃</option>
+                            <option>리스트 레이아웃</option>
+                            <option>카드 레이아웃</option>
+                        </select>
+                    </div>
+
+                    <div class="setting-group">
+                        <label>페이지당 아이템 수</label>
+                        <input type="number" class="setting-input" value="30" min="12" max="60">
+                    </div>
+
+                    <div class="setting-group">
+                        <label>자동 최적화</label>
+                        <label class="toggle">
+                            <input type="checkbox" checked>
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                </div>
+
+                <button class="btn-primary" style="margin-top: 30px;">설정 저장</button>
+            </div>
+        </main>
+    </div>
+
+    <div id="processingStatus" style="display: none;"></div>
+
+    <script src="dashboard.js"></script>
+</body>
+</html>

@@ -1,0 +1,367 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Malgun Gothic', sans-serif;
+    color: #333;
+    line-height: 1.6;
+    overflow-x: hidden;
+}
+
+/* Header */
+header {
+    background: white;
+    padding: 20px 0;
+    box-shadow: 0 1px 0 rgba(0,0,0,0.05);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+}
+
+.header-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.logo {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 1rem;
+    font-weight: 600;
+    color: #000;
+}
+
+.logo-icon {
+    width: 35px;
+    height: 35px;
+    background: #000;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 1rem;
+}
+
+nav {
+    display: flex;
+    gap: 35px;
+    align-items: center;
+}
+
+nav a {
+    color: #333;
+    text-decoration: none;
+    font-size: 0.9rem;
+    font-weight: 400;
+    transition: color 0.3s;
+}
+
+nav a:hover {
+    color: #666;
+}
+
+.contact-btn {
+    background: #000;
+    color: white !important;
+    padding: 8px 20px;
+    border-radius: 5px;
+    font-weight: 500;
+}
+
+.mobile-menu-btn {
+    display: none;
+    background: none;
+    border: none;
+    font-size: 1.5rem;
+    cursor: pointer;
+}
+
+/* Hero Section */
+.hero {
+    background-image: url("main.jpg"); /* 배경 이미지 경로 */
+    background-size: cover;           /* 화면 꽉 채우기 */
+    background-position: center;      /* 가운데 정렬 */
+    background-repeat: no-repeat;     /* 반복 제거 */
+    padding: 120px 20px;
+    text-align: center;
+    color: white;                     /* 글씨가 잘 보이게 */
+    position: relative;               /* 오버레이 효과 줄 때 필요 */
+}
+
+
+.hero::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,0.5); /* 검은 반투명 레이어 */
+    z-index: 1;
+}
+
+
+.hero-content {
+    position: relative;
+    z-index: 2; /* 글자가 오버레이 위에 오도록 */
+}
+.hero h1 {
+    font-size: 2.8rem;
+    font-weight: 700;
+    margin-bottom: 25px;
+    color: #fff;              /* 흰색으로 변경 */
+    line-height: 1.4;
+}
+
+.hero .subtitle {
+    font-size: 1.1rem;
+    color: #ff6b6b;           /* 강조 문구 → 붉은 톤 */
+    margin-bottom: 15px;
+    font-weight: 600;
+}
+
+.hero .description {
+    font-size: 1rem;
+    color: #ddd;              /* 본문 설명 → 연한 회색 */
+    margin-bottom: 40px;
+}
+
+.cta-button {
+    display: inline-block;
+    padding: 14px 35px;
+    background: #007bff;
+    color: white;
+    text-decoration: none;
+    border-radius: 5px;
+    font-weight: 500;
+    font-size: 0.95rem;
+    transition: background 0.3s;
+}
+
+.cta-button:hover {
+    background: #0056b3;
+}
+
+.cta-button::before {
+    content: '→ ';
+}
+
+/* Partners Section */
+.partners {
+    padding: 100px 20px;
+    background: #f8f9fa;
+    overflow: hidden;
+}
+
+.section-title {
+    text-align: center;
+    font-size: 2.2rem;
+    color: #000;
+    margin-bottom: 15px;
+    font-weight: 700;
+}
+
+.section-subtitle {
+    text-align: center;
+    color: #666;
+    margin-bottom: 60px;
+    font-size: 1rem;
+}
+
+.partners-slider {
+    max-width: 1200px;
+    margin: 60px auto 0;
+    overflow: hidden;
+    position: relative;
+}
+
+.partners-track {
+    display: flex;
+    gap: 25px;
+    animation: scroll 30s linear infinite;
+}
+
+@keyframes scroll {
+    0% {
+        transform: translateX(0);
+    }
+    100% {
+        transform: translateX(-50%);
+    }
+}
+
+.partners-track:hover {
+    animation-play-state: paused;
+}
+
+.partner-card {
+    min-width: 220px;
+    background: white;
+    padding: 40px 25px;
+    border-radius: 10px;
+    text-align: center;
+    transition: all 0.3s;
+    flex-shrink: 0;
+}
+
+.partner-card:hover {
+    box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+}
+
+.partner-logo {
+    font-size: 3rem;
+    margin-bottom: 15px;
+}
+
+.partner-name {
+    font-weight: 600;
+    color: #000;
+    font-size: 1rem;
+}
+
+/* Solutions Section */
+.solutions {
+    padding: 100px 20px;
+    background: white;
+}
+
+.solutions-grid {
+    max-width: 1200px;
+    margin: 0 auto;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 30px;
+}
+
+.solution-card {
+    background: #f8f9fa;
+    padding: 35px 25px;
+    border-radius: 10px;
+    transition: all 0.3s;
+}
+
+.solution-card:hover {
+    background: #e9ecef;
+}
+
+.solution-icon {
+    font-size: 2.8rem;
+    margin-bottom: 18px;
+}
+
+.solution-card h3 {
+    color: #000;
+    margin-bottom: 12px;
+    font-size: 1.25rem;
+    font-weight: 600;
+}
+
+.solution-card p {
+    color: #666;
+    line-height: 1.6;
+    font-size: 0.9rem;
+}
+
+/* Footer */
+footer {
+    background: #1a1a1a;
+    color: #999;
+    padding: 70px 20px 30px;
+}
+
+.footer-content {
+    max-width: 1200px;
+    margin: 0 auto;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 40px;
+    margin-bottom: 40px;
+}
+
+.footer-section h3 {
+    margin-bottom: 20px;
+    font-size: 1.1rem;
+    color: white;
+    font-weight: 600;
+}
+
+.footer-section p,
+.footer-section a {
+    color: #999;
+    text-decoration: none;
+    display: block;
+    margin-bottom: 10px;
+    font-size: 0.9rem;
+    transition: color 0.3s;
+}
+
+.footer-section a:hover {
+    color: white;
+}
+
+.footer-bottom {
+    text-align: center;
+    padding-top: 30px;
+    border-top: 1px solid #333;
+    color: #666;
+    font-size: 0.85rem;
+}
+
+.company-badge {
+    position: fixed;
+    bottom: 30px;
+    right: 30px;
+    font-size: 2rem;
+    color: #ccc;
+    font-weight: 300;
+    letter-spacing: 2px;
+    font-family: serif;
+}
+
+/* Mobile Responsive */
+@media (max-width: 768px) {
+    nav {
+        display: none;
+        position: absolute;
+        top: 75px;
+        left: 0;
+        right: 0;
+        background: white;
+        flex-direction: column;
+        padding: 20px;
+        box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+    }
+
+    nav.active {
+        display: flex;
+    }
+
+    .mobile-menu-btn {
+        display: block;
+    }
+
+    .hero h1 {
+        font-size: 1.8rem;
+    }
+
+    .solutions-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .footer-content {
+        grid-template-columns: 1fr;
+    }
+
+    .company-badge {
+        display: none;
+    }
+}

@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>카탈로그 자동화 업로드 솔루션</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- 스크롤 진행 바 -->
+    <div class="progress-line" id="progressLine"></div>
+
+    <!-- Header -->
+    <header>
+        <div class="header-container">
+            <div class="logo">
+                <div class="logo-icon">C</div>
+                <span>CATALOG</span>
+            </div>
+            <nav id="mainNav"></nav>
+            <button class="mobile-menu-btn" onclick="toggleMenu()">☰</button>
+        </div>
+    </header>
+
+    <!-- Hero Section -->
+    <section class="hero" id="home">
+        <div class="hero-content">
+            <h1>카탈로그 제작 시<br>PDF 추가·수정 너무 힘드셨죠?</h1>
+            <p class="subtitle">이제 저희가 해결해드릴게요</p>
+            <a href="dashboard.html" class="cta-button">무료 체험하기</a>
+        </div>
+    </section>
+
+    <!-- Solutions Section - 메인 이미지 바로 아래 -->
+    <section class="solutions" id="solutions" style="background: white; padding: 80px 20px;">
+        <h2 class="section-title">우리의 솔루션</h2>
+        <p class="section-subtitle">3단계로 완성되는 자동 카탈로그 웹사이트</p>
+        
+        <div class="solutions-process" style="max-width: 1400px; margin: 60px auto 0; display: grid; grid-template-columns: repeat(3, 1fr); gap: 40px;">
+            <!-- Step 1: PDF 업로드 -->
+            <div class="process-step" style="text-align: center;">
+                <div class="step-number" style="width: 50px; height: 50px; background: #667eea; color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 24px; font-weight: bold; margin: 0 auto 20px;">1</div>
+                <h3 style="font-size: 20px; margin-bottom: 20px; color: #333;">PDF 업로드</h3>
+                <div class="step-image" style="background: #f8f9fa; border-radius: 10px; padding: 20px; margin-bottom: 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+                    <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 300'%3E%3Crect fill='%23f0f0f0' width='400' height='300'/%3E%3Ctext x='50%25' y='40%25' text-anchor='middle' fill='%23999' font-size='48' font-family='Arial'%3E📄%3C/text%3E%3Ctext x='50%25' y='60%25' text-anchor='middle' fill='%23666' font-size='16' font-family='Arial'%3EPDF 드래그 또는 클릭%3C/text%3E%3C/svg%3E" alt="PDF 업로드" style="width: 100%; border-radius: 8px;">
+                </div>
+                <p style="color: #666; line-height: 1.6;">드래그&드롭으로 간편하게 PDF 카탈로그를 업로드하세요</p>
+            </div>
+
+            <!-- Step 2: 카탈로그 목록 -->
+            <div class="process-step" style="text-align: center;">
+                <div class="step-number" style="width: 50px; height: 50px; background: #667eea; color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 24px; font-weight: bold; margin: 0 auto 20px;">2</div>
+                <h3 style="font-size: 20px; margin-bottom: 20px; color: #333;">자동 처리</h3>
+                <div class="step-image" style="background: #f8f9fa; border-radius: 10px; padding: 20px; margin-bottom: 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+                    <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 300'%3E%3Crect fill='%23fff' width='400' height='300'/%3E%3Crect x='40' y='40' width='320' height='80' rx='8' fill='%23f5f5f5' stroke='%23ddd'/%3E%3Ctext x='60' y='75' fill='%23333' font-size='14' font-family='Arial'%3E제목 없는 문서.pdf%3C/text%3E%3Ctext x='60' y='95' fill='%23666' font-size='12' font-family='Arial'%3E0.31 MB • 제품 수: 8개%3C/text%3E%3Crect x='60' y='135' width='80' height='30' rx='4' fill='%234CAF50'/%3E%3Ctext x='100' y='156' text-anchor='middle' fill='white' font-size='12' font-family='Arial'%3E미리보기%3C/text%3E%3Crect x='160' y='135' width='80' height='30' rx='4' fill='%232196F3'/%3E%3Ctext x='200' y='156' text-anchor='middle' fill='white' font-size='12' font-family='Arial'%3E다운로드%3C/text%3E%3Crect x='260' y='135' width='80' height='30' rx='4' fill='%23f44336'/%3E%3Ctext x='300' y='156' text-anchor='middle' fill='white' font-size='12' font-family='Arial'%3E삭제%3C/text%3E%3C/svg%3E" alt="카탈로그 목록" style="width: 100%; border-radius: 8px;">
+                </div>
+                <p style="color: #666; line-height: 1.6;">업로드된 카탈로그가 자동으로 관리되며 언제든 확인 가능합니다</p>
+            </div>
+
+            <!-- Step 3: 웹사이트 미리보기 -->
+            <div class="process-step" style="text-align: center;">
+                <div class="step-number" style="width: 50px; height: 50px; background: #667eea; color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 24px; font-weight: bold; margin: 0 auto 20px;">3</div>
+                <h3 style="font-size: 20px; margin-bottom: 20px; color: #333;">웹사이트 완성</h3>
+                <div class="step-image" style="background: #f8f9fa; border-radius: 10px; padding: 20px; margin-bottom: 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+                    <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 300'%3E%3Crect fill='%23000' width='400' height='50'/%3E%3Ctext x='200' y='32' text-anchor='middle' fill='white' font-size='16' font-family='Arial'%3E제목 없는 문서%3C/text%3E%3Crect x='20' y='70' width='360' height='210' fill='%23fff' stroke='%23ddd'/%3E%3Ctext x='200' y='110' text-anchor='middle' fill='%23333' font-size='18' font-family='Arial'%3E제품%3C/text%3E%3Crect x='40' y='130' width='100' height='80' rx='4' fill='%23f5f5f5'/%3E%3Crect x='160' y='130' width='100' height='80' rx='4' fill='%23f5f5f5'/%3E%3Crect x='280' y='130' width='100' height='80' rx='4' fill='%23f5f5f5'/%3E%3C/svg%3E" alt="웹사이트 미리보기" style="width: 100%; border-radius: 8px;">
+                </div>
+                <p style="color: #666; line-height: 1.6;">반응형 웹사이트가 자동 생성되어 즉시 공유 가능합니다</p>
+            </div>
+        </div>
+
+        <!-- 추가 기능 강조 -->
+        <div class="solutions-grid" style="max-width: 1200px; margin: 80px auto 0; display: grid; grid-template-columns: repeat(4, 1fr); gap: 30px;">
+            <div class="solution-card" style="background: #f8f9fa; padding: 30px 20px; border-radius: 10px; text-align: center; transition: all 0.3s;">
+                <div class="solution-icon" style="font-size: 2.5rem; margin-bottom: 15px;">🚀</div>
+                <h3 style="font-size: 16px; margin-bottom: 10px; color: #333; font-weight: 600;">간편한 업로드</h3>
+                <p style="font-size: 13px; color: #666; line-height: 1.5;">복잡한 설정 없이 드래그만으로 즉시 시작</p>
+            </div>
+
+            <div class="solution-card" style="background: #f8f9fa; padding: 30px 20px; border-radius: 10px; text-align: center; transition: all 0.3s;">
+                <div class="solution-icon" style="font-size: 2.5rem; margin-bottom: 15px;">📱</div>
+                <h3 style="font-size: 16px; margin-bottom: 10px; color: #333; font-weight: 600;">반응형 디자인</h3>
+                <p style="font-size: 13px; color: #666; line-height: 1.5;">모든 기기에서 최적화된 화면 제공</p>
+            </div>
+
+            <div class="solution-card" style="background: #f8f9fa; padding: 30px 20px; border-radius: 10px; text-align: center; transition: all 0.3s;">
+                <div class="solution-icon" style="font-size: 2.5rem; margin-bottom: 15px;">🔒</div>
+                <h3 style="font-size: 16px; margin-bottom: 10px; color: #333; font-weight: 600;">안전한 관리</h3>
+                <p style="font-size: 13px; color: #666; line-height: 1.5;">클라우드 기반 안전한 데이터 보관</p>
+            </div>
+
+            <div class="solution-card" style="background: #f8f9fa; padding: 30px 20px; border-radius: 10px; text-align: center; transition: all 0.3s;">
+                <div class="solution-icon" style="font-size: 2.5rem; margin-bottom: 15px;">⚡</div>
+                <h3 style="font-size: 16px; margin-bottom: 10px; color: #333; font-weight: 600;">빠른 공유</h3>
+                <p style="font-size: 13px; color: #666; line-height: 1.5;">링크 하나로 고객과 즉시 공유</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- Partners Section -->
+    <section class="partners" id="partners">
+        <h2 class="section-title">제휴 업체</h2>
+        <p class="section-subtitle">함께 성장하는 파트너사들</p>
+        
+        <div class="partners-slider">
+            <div class="partners-track">
+                <div class="partner-card">
+                    <div class="partner-logo">💡</div>
+                    <div class="partner-name">조명산업협회</div>
+                </div>
+                <div class="partner-card">
+                    <div class="partner-logo">🏢</div>
+                    <div class="partner-name">LED 제조사 연합</div>
+                </div>
+                <div class="partner-card">
+                    <div class="partner-logo">🌟</div>
+                    <div class="partner-name">인테리어 디자인 협회</div>
+                </div>
+                <div class="partner-card">
+                    <div class="partner-logo">🔧</div>
+                    <div class="partner-name">건축자재 유통협회</div>
+                </div>
+                <div class="partner-card">
+                    <div class="partner-logo">🎯</div>
+                    <div class="partner-name">스마트홈 솔루션</div>
+                </div>
+                <div class="partner-card">
+                    <div class="partner-logo">📦</div>
+                    <div class="partner-name">전자상거래 플랫폼</div>
+                </div>
+                <div class="partner-card">
+                    <div class="partner-logo">🏭</div>
+                    <div class="partner-name">제조업 협회</div>
+                </div>
+                <div class="partner-card">
+                    <div class="partner-logo">🛠️</div>
+                    <div class="partner-name">산업용품 유통사</div>
+                </div>
+                <!-- 복제 -->
+                <div class="partner-card">
+                    <div class="partner-logo">💡</div>
+                    <div class="partner-name">조명산업협회</div>
+                </div>
+                <div class="partner-card">
+                    <div class="partner-logo">🏢</div>
+                    <div class="partner-name">LED 제조사 연합</div>
+                </div>
+                <div class="partner-card">
+                    <div class="partner-logo">🌟</div>
+                    <div class="partner-name">인테리어 디자인 협회</div>
+                </div>
+                <div class="partner-card">
+                    <div class="partner-logo">🔧</div>
+                    <div class="partner-name">건축자재 유통협회</div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer id="contact">
+        <div class="footer-content">
+            <div class="footer-section">
+                <h3>카탈로그 자동화 업로드 솔루션</h3>
+                <p>대표자: 신윤희</p>
+                <p>사업의 성장을 위한 최고의 파트너</p>
+            </div>
+
+            <div class="footer-section">
+                <h3>서비스</h3>
+                <a href="#solutions">카탈로그 업로드 솔루션</a>
+            </div>
+
+            <div class="footer-section">
+                <h3>문의하기</h3>
+                <p>📍 인천광역시 남동구</p>
+            </div>
+        </div>
+
+        <div class="footer-bottom">
+            <p>&copy; 2025 카탈로그 자동화 업로드 솔루션. All rights reserved.</p>
+        </div>
+    </footer>
+
+    <script src="script.js"></script>
+</body>
+</html>
