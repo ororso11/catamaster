@@ -35,6 +35,10 @@ class TemplateGenerator:
         """고객용 index.html 생성"""
         products_json = json.dumps(self.products, ensure_ascii=False)
         
+        watt_options = ''.join(f'<option value="{v}">{v}</option>' for v in self.categories['watt']['values'])
+        cct_options = ''.join(f'<option value="{v}">{v}</option>' for v in self.categories['cct']['values'])
+        ip_options = ''.join(f'<option value="{v}">{v}</option>' for v in self.categories['ip']['values'])
+        
         return f'''<!DOCTYPE html>
 <html lang="ko">
 <head>
@@ -85,21 +89,21 @@ class TemplateGenerator:
                     <label>소비전력</label>
                     <select id="filterWatt" onchange="applyFilters()">
                         <option value="">전체</option>
-                        {''.join(f'<option value="{v}">{v}</option>' for v in self.categories['watt']['values'])}
+                        {watt_options}
                     </select>
                 </div>
                 <div class="filter-group">
                     <label>색온도</label>
                     <select id="filterCct" onchange="applyFilters()">
                         <option value="">전체</option>
-                        {''.join(f'<option value="{v}">{v}</option>' for v in self.categories['cct']['values'])}
+                        {cct_options}
                     </select>
                 </div>
                 <div class="filter-group">
                     <label>방수등급</label>
                     <select id="filterIp" onchange="applyFilters()">
                         <option value="">전체</option>
-                        {''.join(f'<option value="{v}">{v}</option>' for v in self.categories['ip']['values'])}
+                        {ip_options}
                     </select>
                 </div>
                 <div class="filter-group" style="display: flex; align-items: flex-end;">
@@ -186,6 +190,23 @@ class TemplateGenerator:
     def generate_admin_html(self):
         """관리자용 admin.html - 4개 탭 버전"""
         products_json = json.dumps(self.products, ensure_ascii=False)
+        
+        # 제품 목록 HTML 미리 생성
+        product_items_html = ''
+        for p in self.products:
+            img_src = p.get('images', [p.get('image', '')])[0] if p.get('images') else p.get('image', '')
+            product_name = p.get('name', '제품명 없음')
+            product_number = p.get('productNumber', 'N/A')
+            product_type = p.get('categories', {}).get('productType', 'N/A')
+            
+            product_items_html += f'''
+                <div class="product-item">
+                    <img src="{img_src}" class="product-thumbnail" alt="{product_name}">
+                    <h3>{product_name}</h3>
+                    <p><strong>제품번호:</strong> {product_number}</p>
+                    <p><strong>카테고리:</strong> {product_type}</p>
+                </div>
+            '''
         
         return f'''<!DOCTYPE html>
 <html lang="ko">
@@ -390,14 +411,7 @@ class TemplateGenerator:
         <div id="listTab" class="tab-content">
             <h2>제품 목록 ({len(self.products)}개)</h2>
             <div class="product-list">
-                {''.join(f'''
-                    <div class="product-item">
-                        <img src="{p.get('images', [p.get('image', '')])[0] if p.get('images') else p.get('image', '')}" class="product-thumbnail" alt="{p.get('name', '')}">
-                        <h3>{p.get('name', '제품명 없음')}</h3>
-                        <p><strong>제품번호:</strong> {p.get('productNumber', 'N/A')}</p>
-                        <p><strong>카테고리:</strong> {p.get('categories', {}).get('productType', 'N/A')}</p>
-                    </div>
-                ''' for p in self.products)}
+                {product_items_html}
             </div>
         </div>
         
@@ -441,7 +455,7 @@ class TemplateGenerator:
             }});
             
             const result = await response.json();
-            statusDiv.innerHTML = `✅ {len(self.products)}개 제품 추출 완료!`;
+            statusDiv.innerHTML = `✅ ${{result.products.length}}개 제품 추출 완료!`;
             
             let html = '';
             const pages = {{}};
