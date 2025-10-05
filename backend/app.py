@@ -7,7 +7,7 @@ from utils.image_extractor import ImageExtractor
 from utils.template_generator import TemplateGenerator
 
 app = Flask(__name__)
-CORS(app, origins=["https://cataleaf.vercel.app"])
+CORS(app, origins=["https://www.cataleaf.com", "https://cataleaf.com"])
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
