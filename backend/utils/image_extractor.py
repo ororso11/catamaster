@@ -1,127 +1,80 @@
 """
-Google Vision API 인증 개선 버전
-- JSON 유효성 검사 추가
-- 더 명확한 오류 메시지
-- 인증 디버깅 정보
+실전용 PDF 제품 추출기 v2.0
+- 검증된 휴리스틱 기반
+- 방어적 프로그래밍
+- 상세한 디버깅 로그
+- 신뢰도 점수 제공
 """
 
 import io
 import base64
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageFont
 import fitz
 import os
 import re
 import json
+from collections import defaultdict
+import hashlib
 
-class ImageExtractor:
+class ProductExtractor:
     def __init__(self):
         self.use_vision = False
+        self._init_vision_api()
+        
+        # 설정값 (나중에 UI로 조정 가능)
+        self.config = {
+            'min_image_size': 150,
+            'max_image_size': 1500,
+            'min_image_area': 40000,
+            'text_search_radius_vertical': 150,
+            'text_search_radius_horizontal': 100,
+            'horizontal_overlap_threshold': 0.3,
+            'grid_clustering_threshold': 0.1,
+            'max_texts_per_product': 8,
+        }
+    
+    def _init_vision_api(self):
+        """Google Vision API 초기화"""
         try:
             from google.cloud import vision
             
-            # 환경 변수에서 JSON 읽기
             credentials_json = os.environ.get('GOOGLE_APPLICATION_CREDENTIALS_JSON')
-            credentials_path = None
-            
             if credentials_json:
-                print("📌 환경 변수에서 Google Vision 인증 정보 로드 중...")
-                
-                # JSON 유효성 검사
-                try:
-                    credentials_dict = json.loads(credentials_json)
-                    required_keys = ['type', 'project_id', 'private_key', 'client_email']
-                    missing_keys = [key for key in required_keys if key not in credentials_dict]
-                    
-                    if missing_keys:
-                        print(f"❌ JSON에 필수 키 누락: {missing_keys}")
-                        raise ValueError(f"Missing required keys: {missing_keys}")
-                    
-                    print(f"✓ JSON 유효성 검사 통과")
-                    print(f"  - Project ID: {credentials_dict.get('project_id')}")
-                    print(f"  - Client Email: {credentials_dict.get('client_email')}")
-                    
-                except json.JSONDecodeError as e:
-                    print(f"❌ JSON 파싱 오류: {e}")
-                    raise
-                
-                # 임시 파일로 저장
                 credentials_path = '/tmp/google-credentials.json'
                 with open(credentials_path, 'w') as f:
                     f.write(credentials_json)
                 os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = credentials_path
-                print(f"✓ 인증 정보를 {credentials_path}에 저장")
-                
             elif os.path.exists('google-vision-key.json'):
-                print("📌 로컬 파일에서 Google Vision 인증 정보 로드 중...")
-                credentials_path = 'google-vision-key.json'
-                
-                # 로컬 파일도 유효성 검사
-                with open(credentials_path, 'r') as f:
-                    credentials_dict = json.load(f)
-                    print(f"✓ 로컬 JSON 파일 검증 완료")
-                    print(f"  - Project ID: {credentials_dict.get('project_id')}")
-                    print(f"  - Client Email: {credentials_dict.get('client_email')}")
-                
-                os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = credentials_path
-                
+                os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = 'google-vision-key.json'
             else:
-                print("⚠️ Google Vision 인증 정보 없음")
-                print("  다음 중 하나를 설정하세요:")
-                print("  1. 환경 변수: GOOGLE_APPLICATION_CREDENTIALS_JSON")
-                print("  2. 로컬 파일: google-vision-key.json")
                 raise Exception("No credentials found")
             
-            # Vision 클라이언트 생성
-            print("\n🔧 Vision API 클라이언트 초기화 중...")
             self.vision_client = vision.ImageAnnotatorClient()
-            
-            # 간단한 테스트 호출로 인증 확인
-            print("🧪 인증 테스트 중...")
-            # 작은 테스트 이미지 생성
-            test_img = Image.new('RGB', (100, 100), color='white')
-            buffered = io.BytesIO()
-            test_img.save(buffered, format="PNG")
-            
-            vision_image = vision.Image(content=buffered.getvalue())
-            test_response = self.vision_client.text_detection(image=vision_image)
-            
-            if test_response.error.message:
-                raise Exception(f"Vision API 오류: {test_response.error.message}")
-            
             self.use_vision = True
-            print("✅ Google Vision API 활성화 성공!\n")
+            print("✅ Google Vision API 활성화\n")
             
         except Exception as e:
-            print(f"\n❌ Google Vision API 비활성화")
-            print(f"   오류: {str(e)}")
-            print(f"   → Vision API 없이 기본 추출만 진행합니다\n")
+            print(f"⚠️ Vision API 비활성화: {e}")
+            print("   → 제품명 추출이 제한될 수 있습니다\n")
             self.use_vision = False
-            
-            # 임시 파일 정리
-            if credentials_path and os.path.exists(credentials_path) and credentials_path.startswith('/tmp/'):
-                try:
-                    os.remove(credentials_path)
-                except:
-                    pass
     
     def extract_from_pdf(self, pdf_bytes):
+        """메인 추출 함수"""
         results = []
         
         try:
             pdf_document = fitz.open(stream=pdf_bytes, filetype="pdf")
             total_pages = len(pdf_document)
+            
             print(f"\n{'='*80}")
-            print(f"📄 총 {total_pages}개 페이지 처리 시작")
+            print(f"📄 PDF 분석: {total_pages}페이지")
             print(f"{'='*80}\n")
             
-            # Vision API 호출
-            all_pages_text_data = None
+            # OCR 실행
+            all_pages_text_data = {}
             if self.use_vision:
-                print("🔍 Google Vision OCR 실행 중...\n")
+                print("🔍 OCR 실행 중...\n")
                 all_pages_text_data = self._extract_all_text_once(pdf_document)
-                print("✓ OCR 완료\n")
-            else:
-                print("⚠️ Vision API 없이 진행 - 제품명 추출 제한적\n")
             
             for page_num in range(total_pages):
                 print(f"\n{'='*80}")
@@ -130,6 +83,7 @@ class ImageExtractor:
                 
                 page = pdf_document[page_num]
                 
+                # 페이지 렌더링
                 zoom = 2.0
                 mat = fitz.Matrix(zoom, zoom)
                 pix = page.get_pixmap(matrix=mat)
@@ -137,69 +91,550 @@ class ImageExtractor:
                 page_width = pix.width
                 page_height = pix.height
                 
-                text_blocks = []
-                if all_pages_text_data and page_num in all_pages_text_data:
-                    text_blocks = all_pages_text_data[page_num]
-                    print(f"📝 추출된 텍스트 블록: {len(text_blocks)}개\n")
+                text_blocks = all_pages_text_data.get(page_num, [])
                 
-                debug_image = self._create_text_visualization(page_img_bytes, text_blocks)
-                
-                products = self._extract_with_position_matching(
-                    page, pdf_document, text_blocks, page_width, page_height
+                # 이미지 및 레이아웃 분석
+                layout = self._analyze_page_layout(
+                    page, pdf_document, text_blocks, 
+                    page_width, page_height
                 )
                 
-                print(f"\n✅ {len(products)}개 제품 추출 완료")
-                print(f"{'-'*80}")
-                for i, p in enumerate(products, 1):
-                    print(f"\n제품 {i}:")
-                    print(f"  이름: {p['name']}")
-                    if p['specs']:
-                        print(f"  스펙: {', '.join(p['specs'][:3])}")
-                print(f"{'-'*80}\n")
+                # 제품 추출
+                products = self._extract_products_from_layout(layout)
                 
+                # 결과 저장
                 page_pil = Image.open(io.BytesIO(page_img_bytes))
-                page_image = self._image_to_base64(page_pil)
                 
                 results.append({
                     'page': page_num + 1,
-                    'type': 'list',
-                    'image': page_image,
-                    'debug_image': debug_image,
+                    'type': layout['type'],
+                    'image': self._image_to_base64(page_pil),
+                    'debug_image': self._create_debug_image(page_img_bytes, layout, products),
                     'products': products,
-                    'text_blocks_count': len(text_blocks)
+                    'layout_info': {
+                        'type': layout['type'],
+                        'grid': f"{layout['grid_cols']}x{layout['grid_rows']}",
+                        'images': len(layout['images']),
+                        'avg_confidence': sum(p.get('confidence', 0) for p in products) / len(products) if products else 0
+                    }
                 })
+                
+                print(f"\n✅ 완료: {len(products)}개 제품 추출")
+                print(f"   평균 신뢰도: {results[-1]['layout_info']['avg_confidence']:.1%}\n")
             
             pdf_document.close()
-            print(f"\n{'='*80}")
-            print(f"✅ 전체 처리 완료!")
-            print(f"{'='*80}\n")
             return results
             
         except Exception as e:
-            print(f"\n❌ 오류 발생: {str(e)}\n")
+            print(f"\n❌ 오류: {str(e)}\n")
             import traceback
             traceback.print_exc()
             raise
     
-    def _create_text_visualization(self, page_img_bytes, text_blocks):
-        try:
-            img = Image.open(io.BytesIO(page_img_bytes)).convert('RGB')
-            draw = ImageDraw.Draw(img)
+    def _analyze_page_layout(self, page, pdf_document, text_blocks, page_width, page_height):
+        """페이지 레이아웃 분석"""
+        
+        # 1. 이미지 수집 및 필터링
+        raw_images = self._collect_images(page, pdf_document)
+        filtered_images = self._filter_product_images(raw_images)
+        
+        print(f"🖼️  이미지: {len(raw_images)}개 발견 → {len(filtered_images)}개 필터링")
+        
+        if not filtered_images:
+            return {
+                'type': 'no_products',
+                'grid_cols': 0,
+                'grid_rows': 0,
+                'images': [],
+                'text_blocks': text_blocks,
+                'page_width': page_width,
+                'page_height': page_height
+            }
+        
+        # 2. 그리드 패턴 감지
+        grid_info = self._detect_grid(filtered_images, page_width, page_height)
+        
+        print(f"📊 레이아웃: {grid_info['cols']}열 x {grid_info['rows']}행")
+        
+        # 3. 레이아웃 타입 결정
+        layout_type = self._determine_layout_type(grid_info, len(filtered_images))
+        
+        print(f"🎯 타입: {layout_type}")
+        
+        return {
+            'type': layout_type,
+            'grid_cols': grid_info['cols'],
+            'grid_rows': grid_info['rows'],
+            'images': filtered_images,
+            'text_blocks': text_blocks,
+            'page_width': page_width,
+            'page_height': page_height,
+            'grid_info': grid_info
+        }
+    
+    def _collect_images(self, page, pdf_document):
+        """페이지에서 모든 이미지 수집"""
+        images = []
+        image_list = page.get_images(full=True)
+        
+        for img_index, img in enumerate(image_list):
+            try:
+                xref = img[0]
+                rects = page.get_image_rects(xref)
+                if not rects:
+                    continue
+                
+                rect = rects[0]
+                zoom = 2.0
+                
+                base_image = pdf_document.extract_image(xref)
+                image_bytes = base_image["image"]
+                pil_image = Image.open(io.BytesIO(image_bytes))
+                actual_width, actual_height = pil_image.size
+                
+                images.append({
+                    'xref': xref,
+                    'index': img_index,
+                    'x': rect.x0 * zoom,
+                    'y': rect.y0 * zoom,
+                    'w': (rect.x1 - rect.x0) * zoom,
+                    'h': (rect.y1 - rect.y0) * zoom,
+                    'actual_width': actual_width,
+                    'actual_height': actual_height,
+                    'area': actual_width * actual_height,
+                    'aspect_ratio': actual_width / actual_height if actual_height > 0 else 0,
+                    'image_bytes': image_bytes,
+                    'pil_image': pil_image,
+                    'hash': hashlib.md5(image_bytes).hexdigest()
+                })
+                
+            except Exception as e:
+                continue
+        
+        return images
+    
+    def _filter_product_images(self, images):
+        """제품 이미지 필터링 (중복 제거 + 크기 필터)"""
+        
+        # 1. 크기 필터링
+        size_filtered = []
+        for img in images:
+            w, h = img['actual_width'], img['actual_height']
+            area = img['area']
+            aspect = img['aspect_ratio']
             
-            for block in text_blocks:
-                x, y, w, h = block['x'], block['y'], block['w'], block['h']
-                draw.rectangle([x, y, x+w, y+h], outline='red', width=2)
-                try:
-                    text = block['text'][:15]
-                    draw.text((x, max(0, y-15)), text, fill='blue')
-                except:
-                    pass
+            # 크기 체크
+            if w < self.config['min_image_size'] or h < self.config['min_image_size']:
+                continue
+            if w > self.config['max_image_size'] or h > self.config['max_image_size']:
+                continue
+            if area < self.config['min_image_area']:
+                continue
             
-            return self._image_to_base64(img)
-        except:
-            return None
+            # 비율 체크 (너무 길쭉하면 제외)
+            if not (0.3 <= aspect <= 3.0):
+                continue
+            
+            size_filtered.append(img)
+        
+        # 2. 중복 제거 (해시 기반)
+        seen_hashes = set()
+        hash_filtered = []
+        
+        for img in size_filtered:
+            if img['hash'] not in seen_hashes:
+                seen_hashes.add(img['hash'])
+                hash_filtered.append(img)
+        
+        # 3. 위치 중복 제거 (비슷한 위치의 작은 이미지)
+        hash_filtered.sort(key=lambda x: x['area'], reverse=True)
+        
+        position_filtered = []
+        for img in hash_filtered:
+            is_duplicate = False
+            
+            for existing in position_filtered:
+                x_diff = abs(img['x'] - existing['x'])
+                y_diff = abs(img['y'] - existing['y'])
+                
+                # 50px 이내 + 더 작으면 중복으로 간주
+                if x_diff < 50 and y_diff < 50 and img['area'] < existing['area']:
+                    is_duplicate = True
+                    break
+            
+            if not is_duplicate:
+                position_filtered.append(img)
+        
+        # 중심점 계산
+        for img in position_filtered:
+            img['center_x'] = img['x'] + img['w'] / 2
+            img['center_y'] = img['y'] + img['h'] / 2
+        
+        return position_filtered
+    
+    def _detect_grid(self, images, page_width, page_height):
+        """그리드 패턴 감지 (개선된 클러스터링)"""
+        
+        if len(images) < 2:
+            return {
+                'cols': 1,
+                'rows': 1,
+                'cell_width': page_width,
+                'cell_height': page_height
+            }
+        
+        # X좌표 클러스터링
+        x_coords = sorted([img['center_x'] for img in images])
+        x_threshold = page_width * self.config['grid_clustering_threshold']
+        x_clusters = self._cluster_coordinates(x_coords, x_threshold)
+        
+        # Y좌표 클러스터링
+        y_coords = sorted([img['center_y'] for img in images])
+        y_threshold = page_height * self.config['grid_clustering_threshold']
+        y_clusters = self._cluster_coordinates(y_coords, y_threshold)
+        
+        cols = len(x_clusters)
+        rows = len(y_clusters)
+        
+        # 평균 간격 계산
+        avg_img_w = sum(img['w'] for img in images) / len(images)
+        avg_img_h = sum(img['h'] for img in images) / len(images)
+        
+        return {
+            'cols': cols,
+            'rows': rows,
+            'cell_width': page_width / cols if cols > 0 else page_width,
+            'cell_height': page_height / rows if rows > 0 else page_height,
+            'x_clusters': x_clusters,
+            'y_clusters': y_clusters,
+            'avg_img_width': avg_img_w,
+            'avg_img_height': avg_img_h
+        }
+    
+    def _cluster_coordinates(self, coords, threshold):
+        """좌표 클러스터링 (DBSCAN 간단 버전)"""
+        if not coords:
+            return []
+        
+        clusters = []
+        current_cluster = [coords[0]]
+        
+        for coord in coords[1:]:
+            if coord - current_cluster[-1] <= threshold:
+                current_cluster.append(coord)
+            else:
+                # 클러스터 중심값 저장
+                clusters.append(sum(current_cluster) / len(current_cluster))
+                current_cluster = [coord]
+        
+        if current_cluster:
+            clusters.append(sum(current_cluster) / len(current_cluster))
+        
+        return clusters
+    
+    def _determine_layout_type(self, grid_info, image_count):
+        """레이아웃 타입 결정 (단순 규칙 기반)"""
+        
+        cols = grid_info['cols']
+        rows = grid_info['rows']
+        
+        if image_count == 1:
+            return 'single'
+        elif cols >= 3:
+            return 'grid'
+        elif cols == 2:
+            return 'two_column'
+        elif rows >= 3:
+            return 'vertical_list'
+        else:
+            return 'mixed'
+    
+    def _extract_products_from_layout(self, layout):
+        """레이아웃에서 제품 추출"""
+        
+        layout_type = layout['type']
+        
+        if layout_type == 'no_products':
+            return []
+        
+        # 그리드/2열은 셀 기반 매칭
+        if layout_type in ['grid', 'two_column']:
+            return self._extract_with_cell_matching(layout)
+        
+        # 세로 리스트는 구간 기반 매칭
+        elif layout_type == 'vertical_list':
+            return self._extract_with_region_matching(layout)
+        
+        # 단일 제품은 전체 텍스트 사용
+        elif layout_type == 'single':
+            return self._extract_single_product(layout)
+        
+        # 기타는 거리 기반 매칭
+        else:
+            return self._extract_with_distance_matching(layout)
+    
+    def _extract_with_cell_matching(self, layout):
+        """셀 기반 매칭 (그리드 레이아웃용)"""
+        
+        products = []
+        images = layout['images']
+        text_blocks = layout['text_blocks']
+        grid_info = layout['grid_info']
+        
+        used_texts = set()
+        
+        for img in images:
+            # 이미지가 속한 셀 계산
+            col = self._find_nearest_cluster(img['center_x'], grid_info['x_clusters'])
+            row = self._find_nearest_cluster(img['center_y'], grid_info['y_clusters'])
+            
+            # 셀 경계 계산 (여유 공간 20% 추가)
+            cell_w = grid_info['cell_width']
+            cell_h = grid_info['cell_height']
+            
+            cell_left = col * cell_w - cell_w * 0.1
+            cell_right = (col + 1) * cell_w + cell_w * 0.1
+            cell_top = row * cell_h - cell_h * 0.1
+            cell_bottom = (row + 1) * cell_h + cell_h * 0.1
+            
+            # 셀 내 텍스트 찾기
+            cell_texts = []
+            
+            for idx, block in enumerate(text_blocks):
+                if idx in used_texts:
+                    continue
+                
+                # 텍스트가 셀 안에 있는지
+                if not (cell_left <= block['center_x'] <= cell_right and
+                        cell_top <= block['center_y'] <= cell_bottom):
+                    continue
+                
+                # 이미지와의 관계 분석
+                is_below = block['y'] > img['y'] + img['h']
+                is_above = block['y'] + block['h'] < img['y']
+                
+                if is_below:
+                    priority = 1
+                    distance = block['y'] - (img['y'] + img['h'])
+                elif is_above:
+                    priority = 2
+                    distance = img['y'] - (block['y'] + block['h'])
+                else:
+                    priority = 3
+                    distance = abs(block['center_y'] - img['center_y'])
+                
+                # 거리 제한
+                if distance > self.config['text_search_radius_vertical']:
+                    continue
+                
+                cell_texts.append({
+                    'text': block['text'],
+                    'priority': priority,
+                    'distance': distance,
+                    'y': block['y'],
+                    'x': block['x'],
+                    'index': idx
+                })
+            
+            # 텍스트 정렬 및 조합
+            cell_texts.sort(key=lambda t: (t['priority'], t['distance'], t['y']))
+            cell_texts = cell_texts[:self.config['max_texts_per_product']]
+            
+            product_info = self._build_product_info(img, cell_texts)
+            
+            # 사용된 텍스트 마킹
+            for t in cell_texts:
+                used_texts.add(t['index'])
+            
+            products.append(product_info)
+        
+        return products
+    
+    def _extract_with_region_matching(self, layout):
+        """구간 기반 매칭 (세로 리스트용)"""
+        
+        products = []
+        images = sorted(layout['images'], key=lambda x: x['y'])
+        text_blocks = layout['text_blocks']
+        
+        used_texts = set()
+        
+        for i, img in enumerate(images):
+            # 다음 이미지까지를 구간으로 설정
+            y_start = img['y'] - 50  # 위쪽 여유
+            y_end = images[i+1]['y'] if i < len(images)-1 else layout['page_height']
+            
+            region_texts = []
+            
+            for idx, block in enumerate(text_blocks):
+                if idx in used_texts:
+                    continue
+                
+                if y_start <= block['y'] <= y_end:
+                    distance = abs(block['y'] - (img['y'] + img['h']))
+                    
+                    region_texts.append({
+                        'text': block['text'],
+                        'distance': distance,
+                        'y': block['y'],
+                        'x': block['x'],
+                        'index': idx
+                    })
+            
+            region_texts.sort(key=lambda t: (t['distance'], t['y']))
+            region_texts = region_texts[:self.config['max_texts_per_product']]
+            
+            product_info = self._build_product_info(img, region_texts)
+            
+            for t in region_texts:
+                used_texts.add(t['index'])
+            
+            products.append(product_info)
+        
+        return products
+    
+    def _extract_with_distance_matching(self, layout):
+        """거리 기반 매칭 (기본 전략)"""
+        
+        products = []
+        images = layout['images']
+        text_blocks = layout['text_blocks']
+        
+        used_texts = set()
+        
+        for img in images:
+            nearby_texts = []
+            
+            for idx, block in enumerate(text_blocks):
+                if idx in used_texts:
+                    continue
+                
+                distance = ((block['center_x'] - img['center_x'])**2 + 
+                           (block['center_y'] - img['center_y'])**2)**0.5
+                
+                if distance < 300:  # 300px 이내
+                    nearby_texts.append({
+                        'text': block['text'],
+                        'distance': distance,
+                        'y': block['y'],
+                        'x': block['x'],
+                        'index': idx
+                    })
+            
+            nearby_texts.sort(key=lambda t: t['distance'])
+            nearby_texts = nearby_texts[:self.config['max_texts_per_product']]
+            
+            product_info = self._build_product_info(img, nearby_texts)
+            
+            for t in nearby_texts:
+                used_texts.add(t['index'])
+            
+            products.append(product_info)
+        
+        return products
+    
+    def _extract_single_product(self, layout):
+        """단일 제품 추출"""
+        
+        if not layout['images']:
+            return []
+        
+        img = layout['images'][0]
+        text_blocks = layout['text_blocks']
+        
+        all_texts = [{'text': b['text'], 'y': b['y'], 'x': b['x'], 'index': i} 
+                     for i, b in enumerate(text_blocks)]
+        
+        product_info = self._build_product_info(img, all_texts[:15])
+        
+        return [product_info]
+    
+    def _build_product_info(self, img, texts):
+        """텍스트에서 제품 정보 구성"""
+        
+        # 제품명과 스펙 분리
+        name_parts = []
+        specs = []
+        
+        for t in texts:
+            clean = self._clean_text(t['text'])
+            
+            if not clean or len(clean) < 2:
+                continue
+            
+            # 숫자 비율 계산
+            digit_ratio = sum(c.isdigit() for c in clean) / len(clean)
+            
+            # 스펙 키워드 체크
+            is_spec = (digit_ratio > 0.3 or 
+                      any(kw in clean.upper() for kw in 
+                          ['W', 'MM', 'V', 'K', 'LM', 'COB', 'SMD', 'IP', 'LED', 'Ø']))
+            
+            if is_spec:
+                specs.append(clean)
+            else:
+                name_parts.append(clean)
+        
+        # 제품명: 처음 2-3개 텍스트
+        product_name = ' '.join(name_parts[:3]) if name_parts else f'제품 {img["index"] + 1}'
+        
+        # 너무 길면 자르기
+        if len(product_name) > 80:
+            product_name = product_name[:80] + '...'
+        
+        # 신뢰도 계산
+        confidence = self._calculate_confidence(texts, name_parts, specs)
+        
+        return {
+            'name': product_name,
+            'specs': specs[:5],
+            'details': [],
+            'image': self._image_to_base64(img['pil_image']),
+            'confidence': confidence,
+            'text_count': len(texts)
+        }
+    
+    def _calculate_confidence(self, texts, name_parts, specs):
+        """추출 신뢰도 계산"""
+        
+        score = 0.0
+        
+        # 텍스트가 있으면 기본 점수
+        if texts:
+            score += 0.3
+        
+        # 제품명이 있으면 점수
+        if name_parts:
+            score += 0.4
+        
+        # 스펙이 있으면 점수
+        if specs:
+            score += 0.2
+        
+        # 텍스트 개수에 따라 보너스
+        if len(texts) >= 3:
+            score += 0.1
+        
+        return min(score, 1.0)
+    
+    def _find_nearest_cluster(self, coord, clusters):
+        """가장 가까운 클러스터 찾기"""
+        if not clusters:
+            return 0
+        
+        nearest_idx = 0
+        min_dist = abs(coord - clusters[0])
+        
+        for i, cluster in enumerate(clusters):
+            dist = abs(coord - cluster)
+            if dist < min_dist:
+                min_dist = dist
+                nearest_idx = i
+        
+        return nearest_idx
     
     def _extract_all_text_once(self, pdf_document):
+        """Google Vision OCR"""
         try:
             from google.cloud import vision
             
@@ -216,9 +651,7 @@ class ImageExtractor:
                 vision_image = vision.Image(content=img_bytes)
                 response = self.vision_client.text_detection(image=vision_image)
                 
-                # 오류 체크
                 if response.error.message:
-                    print(f"❌ Vision API 오류 (페이지 {page_num + 1}): {response.error.message}")
                     all_text_data[page_num] = []
                     continue
                 
@@ -226,11 +659,6 @@ class ImageExtractor:
                 if not texts:
                     all_text_data[page_num] = []
                     continue
-                
-                print(f"페이지 {page_num + 1} OCR 전체 텍스트:")
-                print(f"{'-'*60}")
-                print(texts[0].description[:500])
-                print(f"{'-'*60}\n")
                 
                 text_blocks = []
                 for text in texts[1:]:
@@ -251,282 +679,50 @@ class ImageExtractor:
                     })
                 
                 all_text_data[page_num] = text_blocks
+                print(f"   페이지 {page_num + 1}: {len(text_blocks)}개 텍스트 추출")
             
             return all_text_data
             
         except Exception as e:
-            print(f"❌ Vision OCR 오류: {e}\n")
-            import traceback
-            traceback.print_exc()
+            print(f"❌ OCR 오류: {e}")
             return {}
     
-    def _extract_with_position_matching(self, page, pdf_document, text_blocks, page_width, page_height):
-        image_list = page.get_images(full=True)
-        
-        print(f"🖼️  PDF 임베디드 이미지: {len(image_list)}개 발견")
-        
-        # 이미지 위치 및 크기 정보 수집
-        image_data = []
-        for img_index, img in enumerate(image_list):
-            try:
-                xref = img[0]
-                rects = page.get_image_rects(xref)
-                if not rects:
-                    continue
-                
-                rect = rects[0]
-                zoom = 2.0
-                img_x = rect.x0 * zoom
-                img_y = rect.y0 * zoom
-                img_w = (rect.x1 - rect.x0) * zoom
-                img_h = (rect.y1 - rect.y0) * zoom
-                
-                # 실제 이미지 크기도 확인
-                base_image = pdf_document.extract_image(xref)
-                image_bytes = base_image["image"]
-                pil_image = Image.open(io.BytesIO(image_bytes))
-                actual_width, actual_height = pil_image.size
-                
-                image_data.append({
-                    'xref': xref,
-                    'index': img_index,
-                    'x': img_x,
-                    'y': img_y,
-                    'w': img_w,
-                    'h': img_h,
-                    'actual_width': actual_width,
-                    'actual_height': actual_height,
-                    'area': actual_width * actual_height,
-                    'center_x': img_x + img_w/2,
-                    'center_y': img_y + img_h/2,
-                    'image_bytes': image_bytes,
-                    'pil_image': pil_image
-                })
-                
-            except:
-                continue
-        
-        # 크기 기준으로 정렬 (큰 이미지부터)
-        image_data.sort(key=lambda x: x['area'], reverse=True)
-        
-        # 중복 제거: 비슷한 위치의 작은 이미지 제외
-        filtered_images = []
-        for img in image_data:
-            is_duplicate = False
+    def _create_debug_image(self, page_img_bytes, layout, products):
+        """디버그 이미지 생성"""
+        try:
+            img = Image.open(io.BytesIO(page_img_bytes)).convert('RGB')
+            draw = ImageDraw.Draw(img)
             
-            for existing in filtered_images:
-                x_diff = abs(img['center_x'] - existing['center_x'])
-                y_diff = abs(img['center_y'] - existing['center_y'])
-                
-                if x_diff < 50 and y_diff < 50 and img['area'] < existing['area']:
-                    is_duplicate = True
-                    break
+            # 이미지 박스 (빨강)
+            for img_data in layout['images']:
+                x, y, w, h = img_data['x'], img_data['y'], img_data['w'], img_data['h']
+                draw.rectangle([x, y, x+w, y+h], outline='red', width=3)
             
-            if not is_duplicate:
-                filtered_images.append(img)
-        
-        print(f"🔍 필터링 후: {len(filtered_images)}개 이미지")
-        
-        products = []
-        seen_hashes = set()
-        used_text_blocks = set()
-        
-        for img_data in filtered_images:
-            try:
-                width = img_data['actual_width']
-                height = img_data['actual_height']
-                area = img_data['area']
-                pil_image = img_data['pil_image']
-                image_bytes = img_data['image_bytes']
-                
-                # 중복 체크
-                import hashlib
-                img_hash = hashlib.md5(image_bytes).hexdigest()
-                if img_hash in seen_hashes:
-                    print(f"  이미지 {img_data['index'] + 1}: 중복 제외")
-                    continue
-                seen_hashes.add(img_hash)
-                
-                # 크기 필터
-                if width < 150 or height < 150:
-                    print(f"  이미지 {img_data['index'] + 1}: 너무 작음 ({width}x{height})")
-                    continue
-                
-                if width > 1500 or height > 1500:
-                    print(f"  이미지 {img_data['index'] + 1}: 너무 큼 ({width}x{height})")
-                    continue
-                
-                if area < 40000:
-                    print(f"  이미지 {img_data['index'] + 1}: 면적 부족 ({area})")
-                    continue
-                
-                aspect = width / height
-                if not (0.5 <= aspect <= 2.0):
-                    print(f"  이미지 {img_data['index'] + 1}: 비율 부적합 ({aspect:.2f})")
-                    continue
-                
-                img_base64 = self._image_to_base64(pil_image)
-                
-                # 텍스트 찾기
-                product_info = self._find_text_around_image(img_data, text_blocks, used_text_blocks)
-                
-                print(f"\n  ✓ 이미지 {img_data['index'] + 1} → 제품:")
-                print(f"    크기: {width}x{height}")
-                print(f"    제품명: {product_info['name']}")
-                print(f"    텍스트: {len(product_info['used_indices'])}개")
-                
-                products.append({
-                    'name': product_info['name'],
-                    'specs': product_info['specs'],
-                    'details': product_info['details'],
-                    'image': img_base64
-                })
-                
-            except Exception as e:
-                print(f"  이미지 처리 오류: {e}")
-                continue
-        
-        return products
-    
-    def _find_text_around_image(self, img_data, text_blocks, used_text_blocks):
-        """이미지 주변 텍스트 탐색 - 그리드 레이아웃 최적화"""
-        if not text_blocks:
-            return {
-                'name': f'제품 {img_data["index"] + 1}',
-                'specs': [],
-                'details': [],
-                'used_indices': []
-            }
-        
-        img_left = img_data['x']
-        img_right = img_data['x'] + img_data['w']
-        img_bottom = img_data['y'] + img_data['h']
-        img_center_x = img_data['center_x']
-        img_w = img_data['w']
-        img_h = img_data['h']
-        
-        # 디버깅 정보
-        print(f"\n  🔍 이미지 {img_data['index'] + 1} 텍스트 탐색:")
-        print(f"     위치: x={img_left:.0f}, y={img_data['y']:.0f}")
-        print(f"     크기: {img_w:.0f} x {img_h:.0f}")
-        
-        nearby_texts = []
-        
-        for idx, block in enumerate(text_blocks):
-            if idx in used_text_blocks:
-                continue
+            # 그리드 라인 (파랑, 얇게)
+            if 'grid_info' in layout:
+                grid = layout['grid_info']
+                if 'x_clusters' in grid:
+                    for x in grid['x_clusters']:
+                        draw.line([(x, 0), (x, layout['page_height'])], 
+                                fill='blue', width=1)
+                if 'y_clusters' in grid:
+                    for y in grid['y_clusters']:
+                        draw.line([(0, y), (layout['page_width'], y)], 
+                                fill='blue', width=1)
             
-            text_left = block['x']
-            text_right = block['x'] + block['w']
-            text_center_x = block['center_x']
-            text_y = block['y']
-            
-            # 1. 아래쪽 텍스트 (최우선) - 좌우 범위를 더 엄격하게
-            vertical_dist = text_y - img_bottom
-            if 0 <= vertical_dist <= 150:
-                # 텍스트가 이미지의 좌우 범위 안에 있는지 확인
-                horizontal_overlap = min(img_right, text_right) - max(img_left, text_left)
-                
-                if horizontal_overlap > img_w * 0.3:  # 30% 이상 겹침
-                    nearby_texts.append({
-                        'text': block['text'],
-                        'priority': 1,
-                        'distance': vertical_dist,
-                        'overlap': horizontal_overlap,
-                        'x': block['x'],
-                        'y': text_y,
-                        'index': idx
-                    })
-                    print(f"     ✓ 아래 텍스트: '{block['text'][:20]}' (거리={vertical_dist:.0f}, 겹침={horizontal_overlap:.0f})")
-                    continue
-            
-            # 2. 위쪽 텍스트
-            vertical_dist_above = img_data['y'] - (text_y + block['h'])
-            if 0 <= vertical_dist_above <= 80:
-                horizontal_overlap = min(img_right, text_right) - max(img_left, text_left)
-                
-                if horizontal_overlap > img_w * 0.3:
-                    nearby_texts.append({
-                        'text': block['text'],
-                        'priority': 2,
-                        'distance': vertical_dist_above,
-                        'overlap': horizontal_overlap,
-                        'x': block['x'],
-                        'y': text_y,
-                        'index': idx
-                    })
-        
-        if not nearby_texts:
-            print(f"     ❌ 주변 텍스트 없음")
-            return {
-                'name': f'제품 {img_data["index"] + 1}',
-                'specs': [],
-                'details': [],
-                'used_indices': []
-            }
-        
-        # 정렬: 우선순위 → 거리 → 겹침 정도
-        nearby_texts.sort(key=lambda t: (t['priority'], t['distance'], -t['overlap']))
-        
-        # 상위 8개만 사용 (너무 많은 텍스트 방지)
-        nearby_texts = nearby_texts[:8]
-        
-        # 라인 그룹화
-        lines = []
-        current_line = []
-        last_y = -1
-        
-        for item in nearby_texts:
-            if last_y < 0 or abs(item['y'] - last_y) < 25:
-                current_line.append(item)
-            else:
-                if current_line:
-                    current_line.sort(key=lambda t: t['x'])
-                    lines.append(' '.join([t['text'] for t in current_line]))
-                current_line = [item]
-            last_y = item['y']
-        
-        if current_line:
-            current_line.sort(key=lambda t: t['x'])
-            lines.append(' '.join([t['text'] for t in current_line]))
-        
-        print(f"     📝 추출된 라인: {len(lines)}개")
-        for i, line in enumerate(lines[:3]):
-            print(f"        {i+1}. {line[:50]}")
-        
-        # 제품명 추출 로직 개선
-        product_name_parts = []
-        specs = []
-        
-        for line in lines:
-            clean = self._clean_text(line)
-            
-            # 숫자가 많으면 스펙으로 분류
-            digit_count = sum(c.isdigit() for c in clean)
-            if digit_count > len(clean) * 0.3:  # 30% 이상이 숫자
-                specs.append(clean)
-            else:
-                product_name_parts.append(clean)
-        
-        # 제품명은 처음 2개 라인
-        product_name = ' '.join(product_name_parts[:2]) if product_name_parts else f'제품 {img_data["index"] + 1}'
-        
-        # 사용된 텍스트 마킹
-        for t in nearby_texts:
-            used_text_blocks.add(t['index'])
-        
-        return {
-            'name': self._clean_text(product_name),
-            'specs': specs[:5],
-            'details': [],
-            'used_indices': [t['index'] for t in nearby_texts]
-        }
+            return self._image_to_base64(img)
+        except:
+            return None
     
     def _clean_text(self, text):
-        text = re.sub(r'\s+', ' ', text).strip()
-        return text[:100] if len(text) > 100 else text
+        """텍스트 정리"""
+        if not text:
+            return ""
+        text = re.sub(r'\s+', ' ', str(text)).strip()
+        return text[:100]
     
     def _image_to_base64(self, image):
+        """이미지를 Base64로 변환"""
         buffered = io.BytesIO()
         image = image.convert('RGB')
         
@@ -537,3 +733,7 @@ class ImageExtractor:
         
         image.save(buffered, format="JPEG", quality=90, optimize=True)
         return f"data:image/jpeg;base64,{base64.b64encode(buffered.getvalue()).decode()}"
+
+
+# 별칭
+ImageExtractor = ProductExtractor
