@@ -389,7 +389,7 @@ class ImageExtractor:
         return products
     
     def _find_text_around_image(self, img_data, text_blocks, used_text_blocks):
-        """이미지 주변 전방향 텍스트 탐색"""
+        """이미지 주변 텍스트 탐색 - 그리드 레이아웃 최적화"""
         if not text_blocks:
             return {
                 'name': f'제품 {img_data["index"] + 1}',
@@ -398,11 +398,17 @@ class ImageExtractor:
                 'used_indices': []
             }
         
+        img_left = img_data['x']
+        img_right = img_data['x'] + img_data['w']
         img_bottom = img_data['y'] + img_data['h']
         img_center_x = img_data['center_x']
-        img_center_y = img_data['center_y']
         img_w = img_data['w']
         img_h = img_data['h']
+        
+        # 디버깅 정보
+        print(f"\n  🔍 이미지 {img_data['index'] + 1} 텍스트 탐색:")
+        print(f"     위치: x={img_left:.0f}, y={img_data['y']:.0f}")
+        print(f"     크기: {img_w:.0f} x {img_h:.0f}")
         
         nearby_texts = []
         
@@ -410,54 +416,48 @@ class ImageExtractor:
             if idx in used_text_blocks:
                 continue
             
+            text_left = block['x']
+            text_right = block['x'] + block['w']
             text_center_x = block['center_x']
-            text_center_y = block['center_y']
             text_y = block['y']
             
-            # 아래쪽 텍스트 (최우선)
+            # 1. 아래쪽 텍스트 (최우선) - 좌우 범위를 더 엄격하게
             vertical_dist = text_y - img_bottom
-            if 0 <= vertical_dist <= 200:
-                horizontal_dist = abs(text_center_x - img_center_x)
-                if horizontal_dist <= img_w * 0.8:
+            if 0 <= vertical_dist <= 150:
+                # 텍스트가 이미지의 좌우 범위 안에 있는지 확인
+                horizontal_overlap = min(img_right, text_right) - max(img_left, text_left)
+                
+                if horizontal_overlap > img_w * 0.3:  # 30% 이상 겹침
                     nearby_texts.append({
                         'text': block['text'],
                         'priority': 1,
                         'distance': vertical_dist,
+                        'overlap': horizontal_overlap,
                         'x': block['x'],
                         'y': text_y,
                         'index': idx
                     })
+                    print(f"     ✓ 아래 텍스트: '{block['text'][:20]}' (거리={vertical_dist:.0f}, 겹침={horizontal_overlap:.0f})")
                     continue
             
-            # 위쪽 텍스트
+            # 2. 위쪽 텍스트
             vertical_dist_above = img_data['y'] - (text_y + block['h'])
-            if 0 <= vertical_dist_above <= 100:
-                horizontal_dist = abs(text_center_x - img_center_x)
-                if horizontal_dist <= img_w * 0.8:
+            if 0 <= vertical_dist_above <= 80:
+                horizontal_overlap = min(img_right, text_right) - max(img_left, text_left)
+                
+                if horizontal_overlap > img_w * 0.3:
                     nearby_texts.append({
                         'text': block['text'],
                         'priority': 2,
                         'distance': vertical_dist_above,
-                        'x': block['x'],
-                        'y': text_y,
-                        'index': idx
-                    })
-                    continue
-            
-            # 옆쪽 텍스트
-            if abs(text_center_y - img_center_y) <= img_h * 0.5:
-                horizontal_dist = abs(text_center_x - img_center_x)
-                if img_w * 0.5 <= horizontal_dist <= img_w * 1.5:
-                    nearby_texts.append({
-                        'text': block['text'],
-                        'priority': 3,
-                        'distance': horizontal_dist,
+                        'overlap': horizontal_overlap,
                         'x': block['x'],
                         'y': text_y,
                         'index': idx
                     })
         
         if not nearby_texts:
+            print(f"     ❌ 주변 텍스트 없음")
             return {
                 'name': f'제품 {img_data["index"] + 1}',
                 'specs': [],
@@ -465,9 +465,11 @@ class ImageExtractor:
                 'used_indices': []
             }
         
-        # 정렬: 우선순위 → Y좌표
-        nearby_texts.sort(key=lambda t: (t['priority'], t['y'], t['x']))
-        nearby_texts = nearby_texts[:12]
+        # 정렬: 우선순위 → 거리 → 겹침 정도
+        nearby_texts.sort(key=lambda t: (t['priority'], t['distance'], -t['overlap']))
+        
+        # 상위 8개만 사용 (너무 많은 텍스트 방지)
+        nearby_texts = nearby_texts[:8]
         
         # 라인 그룹화
         lines = []
@@ -475,7 +477,7 @@ class ImageExtractor:
         last_y = -1
         
         for item in nearby_texts:
-            if last_y < 0 or abs(item['y'] - last_y) < 30:
+            if last_y < 0 or abs(item['y'] - last_y) < 25:
                 current_line.append(item)
             else:
                 if current_line:
@@ -488,15 +490,26 @@ class ImageExtractor:
             current_line.sort(key=lambda t: t['x'])
             lines.append(' '.join([t['text'] for t in current_line]))
         
-        # 제품명 = 첫 3개 라인
-        product_name = ' '.join(lines[:3]) if len(lines) >= 3 else ' '.join(lines) if lines else f'제품 {img_data["index"] + 1}'
+        print(f"     📝 추출된 라인: {len(lines)}개")
+        for i, line in enumerate(lines[:3]):
+            print(f"        {i+1}. {line[:50]}")
         
-        # 스펙 추출
+        # 제품명 추출 로직 개선
+        product_name_parts = []
         specs = []
-        for line in lines[3:]:
+        
+        for line in lines:
             clean = self._clean_text(line)
-            if re.search(r'\d+', clean) or any(u in clean for u in ['W', 'mm', 'V', 'K', 'lm', 'COB', 'SMD', 'IP', 'Ø']):
+            
+            # 숫자가 많으면 스펙으로 분류
+            digit_count = sum(c.isdigit() for c in clean)
+            if digit_count > len(clean) * 0.3:  # 30% 이상이 숫자
                 specs.append(clean)
+            else:
+                product_name_parts.append(clean)
+        
+        # 제품명은 처음 2개 라인
+        product_name = ' '.join(product_name_parts[:2]) if product_name_parts else f'제품 {img_data["index"] + 1}'
         
         # 사용된 텍스트 마킹
         for t in nearby_texts:
