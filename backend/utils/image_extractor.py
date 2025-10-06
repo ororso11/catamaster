@@ -1,8 +1,8 @@
 """
-개선된 PDF 제품 추출기:
-1. Google Vision API 환경 변수 지원
-2. 중복 제거 강화
-3. 전방향 텍스트 탐색
+Google Vision API 인증 개선 버전
+- JSON 유효성 검사 추가
+- 더 명확한 오류 메시지
+- 인증 디버깅 정보
 """
 
 import io
@@ -19,31 +19,90 @@ class ImageExtractor:
         try:
             from google.cloud import vision
             
-            # 환경 변수에서 JSON 읽기 (Railway 배포용)
+            # 환경 변수에서 JSON 읽기
             credentials_json = os.environ.get('GOOGLE_APPLICATION_CREDENTIALS_JSON')
+            credentials_path = None
+            
             if credentials_json:
                 print("📌 환경 변수에서 Google Vision 인증 정보 로드 중...")
-                # JSON을 임시 파일로 저장
+                
+                # JSON 유효성 검사
+                try:
+                    credentials_dict = json.loads(credentials_json)
+                    required_keys = ['type', 'project_id', 'private_key', 'client_email']
+                    missing_keys = [key for key in required_keys if key not in credentials_dict]
+                    
+                    if missing_keys:
+                        print(f"❌ JSON에 필수 키 누락: {missing_keys}")
+                        raise ValueError(f"Missing required keys: {missing_keys}")
+                    
+                    print(f"✓ JSON 유효성 검사 통과")
+                    print(f"  - Project ID: {credentials_dict.get('project_id')}")
+                    print(f"  - Client Email: {credentials_dict.get('client_email')}")
+                    
+                except json.JSONDecodeError as e:
+                    print(f"❌ JSON 파싱 오류: {e}")
+                    raise
+                
+                # 임시 파일로 저장
                 credentials_path = '/tmp/google-credentials.json'
                 with open(credentials_path, 'w') as f:
                     f.write(credentials_json)
                 os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = credentials_path
-                print("✓ 환경 변수에서 인증 정보 로드 완료")
+                print(f"✓ 인증 정보를 {credentials_path}에 저장")
+                
             elif os.path.exists('google-vision-key.json'):
                 print("📌 로컬 파일에서 Google Vision 인증 정보 로드 중...")
-                os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = 'google-vision-key.json'
-                print("✓ 로컬 파일에서 인증 정보 로드 완료")
+                credentials_path = 'google-vision-key.json'
+                
+                # 로컬 파일도 유효성 검사
+                with open(credentials_path, 'r') as f:
+                    credentials_dict = json.load(f)
+                    print(f"✓ 로컬 JSON 파일 검증 완료")
+                    print(f"  - Project ID: {credentials_dict.get('project_id')}")
+                    print(f"  - Client Email: {credentials_dict.get('client_email')}")
+                
+                os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = credentials_path
+                
             else:
-                print("⚠️ Google Vision 인증 파일 없음")
+                print("⚠️ Google Vision 인증 정보 없음")
+                print("  다음 중 하나를 설정하세요:")
+                print("  1. 환경 변수: GOOGLE_APPLICATION_CREDENTIALS_JSON")
+                print("  2. 로컬 파일: google-vision-key.json")
                 raise Exception("No credentials found")
             
+            # Vision 클라이언트 생성
+            print("\n🔧 Vision API 클라이언트 초기화 중...")
             self.vision_client = vision.ImageAnnotatorClient()
+            
+            # 간단한 테스트 호출로 인증 확인
+            print("🧪 인증 테스트 중...")
+            # 작은 테스트 이미지 생성
+            test_img = Image.new('RGB', (100, 100), color='white')
+            buffered = io.BytesIO()
+            test_img.save(buffered, format="PNG")
+            
+            vision_image = vision.Image(content=buffered.getvalue())
+            test_response = self.vision_client.text_detection(image=vision_image)
+            
+            if test_response.error.message:
+                raise Exception(f"Vision API 오류: {test_response.error.message}")
+            
             self.use_vision = True
-            print("✓ Google Vision API 활성화됨\n")
+            print("✅ Google Vision API 활성화 성공!\n")
             
         except Exception as e:
-            print(f"✗ Google Vision API 비활성화: {str(e)}\n")
+            print(f"\n❌ Google Vision API 비활성화")
+            print(f"   오류: {str(e)}")
+            print(f"   → Vision API 없이 기본 추출만 진행합니다\n")
             self.use_vision = False
+            
+            # 임시 파일 정리
+            if credentials_path and os.path.exists(credentials_path) and credentials_path.startswith('/tmp/'):
+                try:
+                    os.remove(credentials_path)
+                except:
+                    pass
     
     def extract_from_pdf(self, pdf_bytes):
         results = []
@@ -156,6 +215,12 @@ class ImageExtractor:
                 
                 vision_image = vision.Image(content=img_bytes)
                 response = self.vision_client.text_detection(image=vision_image)
+                
+                # 오류 체크
+                if response.error.message:
+                    print(f"❌ Vision API 오류 (페이지 {page_num + 1}): {response.error.message}")
+                    all_text_data[page_num] = []
+                    continue
                 
                 texts = response.text_annotations
                 if not texts:
