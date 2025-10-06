@@ -1,9 +1,36 @@
-// API 엔드포인트 (Railway 배포 후 변경)
-const API_URL = 'http://localhost:5000'; // 로컬 개발
-// const API_URL = 'https://your-railway-app.railway.app'; // 배포 후 변경
+// API 엔드포인트
+const API_URL = 'https://catamaster-production.up.railway.app';
 
 const MAX_FILE_SIZE_MB = 50;
+const MAX_UPLOADS_PER_IP = 2;
 let generatedFiles = null;
+
+// 업로드 횟수 체크 (localStorage 사용)
+function checkUploadLimit() {
+    const uploadCount = parseInt(localStorage.getItem('uploadCount') || '0');
+    const lastUploadDate = localStorage.getItem('lastUploadDate');
+    const today = new Date().toDateString();
+    
+    // 날짜가 바뀌면 카운트 리셋
+    if (lastUploadDate !== today) {
+        localStorage.setItem('uploadCount', '0');
+        localStorage.setItem('lastUploadDate', today);
+        return true;
+    }
+    
+    if (uploadCount >= MAX_UPLOADS_PER_IP) {
+        alert(`업로드 제한에 도달했습니다.\n\n오늘은 ${uploadCount}/${MAX_UPLOADS_PER_IP}회 업로드를 완료하셨습니다.\n내일 다시 시도해주세요.\n\n더 많은 업로드가 필요하시면 유료 플랜을 이용해주세요.`);
+        return false;
+    }
+    
+    return true;
+}
+
+function incrementUploadCount() {
+    const uploadCount = parseInt(localStorage.getItem('uploadCount') || '0');
+    localStorage.setItem('uploadCount', (uploadCount + 1).toString());
+    localStorage.setItem('lastUploadDate', new Date().toDateString());
+}
 
 // 탭 전환
 document.querySelectorAll('.menu-item').forEach(item => {
@@ -49,17 +76,42 @@ fileInput.addEventListener('change', (e) => {
 });
 
 async function handleFiles(files) {
-    const file = files[0];
-    if (!file) return;
-
-    if (file.type !== 'application/pdf') {
-        alert('PDF 파일만 업로드 가능합니다.');
+    // 파일 존재 여부 확인
+    if (!files || files.length === 0) {
+        alert('파일을 선택해주세요.');
         return;
     }
 
+    const file = files[0];
+    
+    // PDF 파일 확장자 검증 (엄격하게)
+    const fileName = file.name.toLowerCase();
+    const fileExtension = fileName.substring(fileName.lastIndexOf('.'));
+    
+    if (fileExtension !== '.pdf') {
+        alert(`PDF 파일만 업로드 가능합니다.\n\n업로드하신 파일: ${file.name}\n파일 형식: ${fileExtension || '알 수 없음'}\n\n.pdf 확장자를 가진 파일만 업로드해주세요.`);
+        fileInput.value = ''; // 파일 선택 초기화
+        return;
+    }
+
+    // MIME 타입 추가 검증
+    if (file.type !== 'application/pdf' && file.type !== '') {
+        alert(`올바른 PDF 파일이 아닙니다.\n\nMIME 타입: ${file.type}\n\nPDF 파일만 업로드 가능합니다.`);
+        fileInput.value = '';
+        return;
+    }
+
+    // 파일 크기 검증
     const fileSizeMB = (file.size / 1024 / 1024).toFixed(2);
     if (parseFloat(fileSizeMB) > MAX_FILE_SIZE_MB) {
-        alert(`파일 크기가 너무 큽니다.\n파일 크기: ${fileSizeMB}MB\n최대 허용: ${MAX_FILE_SIZE_MB}MB`);
+        alert(`파일 크기가 너무 큽니다.\n\n업로드하신 파일: ${file.name}\n파일 크기: ${fileSizeMB}MB\n최대 허용 크기: ${MAX_FILE_SIZE_MB}MB\n\n파일 크기를 줄인 후 다시 시도해주세요.`);
+        fileInput.value = '';
+        return;
+    }
+
+    // 업로드 횟수 제한 확인
+    if (!checkUploadLimit()) {
+        fileInput.value = '';
         return;
     }
 
@@ -93,16 +145,24 @@ async function uploadPDF(file) {
             'admin.html': result.admin_html
         };
 
+        // 업로드 성공 시 카운트 증가
+        incrementUploadCount();
+        
+        const uploadCount = parseInt(localStorage.getItem('uploadCount') || '0');
+        const remainingUploads = MAX_UPLOADS_PER_IP - uploadCount;
+
         hideProcessingStatus();
         document.querySelector('[data-tab="preview"]').click();
         displayPreview(result);
 
-        alert(`완료!\n\n파일명: ${file.name}\n크기: ${fileSizeMB} MB\n제품 수: ${result.products_count}개\n\nindex.html과 admin.html이 생성되었습니다.`);
+        alert(`완료!\n\n파일명: ${file.name}\n크기: ${fileSizeMB} MB\n제품 수: ${result.products_count}개\n\nindex.html과 admin.html이 생성되었습니다.\n\n남은 무료 업로드: ${remainingUploads}/${MAX_UPLOADS_PER_IP}회`);
 
     } catch (error) {
         hideProcessingStatus();
         alert('PDF 처리 중 오류가 발생했습니다.\n\n' + error.message);
         console.error(error);
+    } finally {
+        fileInput.value = ''; // 업로드 후 파일 선택 초기화
     }
 }
 
@@ -123,13 +183,12 @@ function displayPreview(result) {
     const adminUrl = `data:text/html;charset=utf-8,${encodeURIComponent(generatedFiles['admin.html'])}`;
 
     container.innerHTML = `
-        <div class="demo-notice">
-            <h3>✨ 웹사이트가 성공적으로 생성되었습니다!</h3>
-            <p>서버에서 PDF를 정교하게 파싱하여 ${result.products_count}개 제품을 추출했습니다.</p>
-            <p style="margin-top: 10px; font-size: 14px; opacity: 0.9;">
+        <div style="background: linear-gradient(135deg, #2d5f3f 0%, #4a8c5c 100%); color: white; padding: 30px; border-radius: 10px; margin-bottom: 30px; text-align: center;">
+            <h3 style="margin-bottom: 15px; font-size: 1.5rem;">✨ 웹사이트가 성공적으로 생성되었습니다!</h3>
+            <p style="margin-bottom: 10px;">서버에서 PDF를 정교하게 파싱하여 ${result.products_count}개 제품을 추출했습니다.</p>
+            <p style="font-size: 14px; opacity: 0.95;">
                 추출된 이미지: ${result.images_count}개 | 파싱 시간: ${result.processing_time}초
             </p>
-            <a href="mailto:contact@lightpdf.io" class="cta-button">정식 버전 문의하기 →</a>
         </div>
         
         <div class="download-buttons">
@@ -198,3 +257,23 @@ function hideProcessingStatus() {
     const statusDiv = document.getElementById('processingStatus');
     statusDiv.style.display = 'none';
 }
+
+// 페이지 로드 시 남은 업로드 횟수 표시
+window.addEventListener('DOMContentLoaded', () => {
+    const uploadCount = parseInt(localStorage.getItem('uploadCount') || '0');
+    const lastUploadDate = localStorage.getItem('lastUploadDate');
+    const today = new Date().toDateString();
+    
+    // 날짜가 바뀌면 카운트 리셋
+    if (lastUploadDate !== today) {
+        localStorage.setItem('uploadCount', '0');
+        localStorage.setItem('lastUploadDate', today);
+    }
+    
+    const currentCount = parseInt(localStorage.getItem('uploadCount') || '0');
+    const remainingUploads = MAX_UPLOADS_PER_IP - currentCount;
+    
+    if (currentCount > 0) {
+        console.log(`오늘 남은 업로드: ${remainingUploads}/${MAX_UPLOADS_PER_IP}회`);
+    }
+});

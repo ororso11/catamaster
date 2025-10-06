@@ -5,9 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CATALEAF - PDF 카탈로그 업로드</title>
     <link rel="stylesheet" href="dashboard.css">
-    <style>
-      
-    </style>
 </head>
 <body>
     <header>
@@ -35,68 +32,114 @@
 
         <main class="main-content">
             <div class="tab-content active" id="upload">
-                <!-- <div class="demo-notice">
-                    <h3>🎯 AI 기반 PDF 파싱</h3>
-                    <p>PDF를 업로드하면 서버에서 정교하게 제품을 추출하여 웹사이트를 생성합니다.</p>
-                    <div style="display: flex; gap: 15px; justify-content: center; margin-top: 20px;">
-                        <a href="mailto:contact@lightpdf.io" class="cta-button">이메일 문의</a>
-                        <a href="#" id="kakaoConsultBtn" class="cta-button" style="background: #FEE500; color: #000;">
-                            💬 카카오톡 상담
-                        </a>
-                    </div>
-                </div> -->
-
                 <div class="content-header">
                     <h2>PDF 카탈로그 업로드</h2>
                     <p>PDF 파일을 업로드하여 자동으로 웹사이트 생성</p>
                 </div>
 
-                <!-- PDF 규격 안내 -->
-                <div class="pdf-specs">
-                    <h3>📋 권장 PDF 규격</h3>
-                    <div class="specs-grid">
-                        <div class="spec-item">
-                            <div class="spec-icon">📐</div>
-                            <div class="spec-content">
-                                <h4>페이지 크기</h4>
-                                <p>A4 (210×297mm) 또는 US Letter 권장</p>
+                <!-- 샘플 PDF 예시 섹션 -->
+                <div class="sample-section">
+                    <h2>📄 샘플 PDF 예시</h2>
+                    <p class="sample-subtitle">이런 형식의 PDF를 업로드하시면 최적의 결과를 얻을 수 있습니다</p>
+                    
+                    <div class="sample-grid">
+                        <div class="sample-card good">
+                            <div class="sample-label good-label">✅ 권장 형식</div>
+                            <div class="sample-preview-img">
+                                <div class="mock-pdf good-pdf">
+                                    <div class="pdf-header">조명 카탈로그</div>
+                                    <div class="pdf-products">
+                                        <div class="pdf-product">
+                                            <div class="product-img">🔆</div>
+                                            <div class="product-name">LED-DL-100</div>
+                                            <div class="product-specs">10W / 3000K</div>
+                                        </div>
+                                        <div class="pdf-product">
+                                            <div class="product-img">💡</div>
+                                            <div class="product-name">LED-SL-200</div>
+                                            <div class="product-specs">15W / 4000K</div>
+                                        </div>
+                                        <div class="pdf-product">
+                                            <div class="product-img">🌟</div>
+                                            <div class="product-name">LED-TL-300</div>
+                                            <div class="product-specs">20W / 5000K</div>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
+                            <h3>규칙적인 레이아웃</h3>
+                            <ul class="sample-features">
+                                <li>제품이 균등하게 배치됨</li>
+                                <li>이미지 아래 제품명 위치</li>
+                                <li>명확한 텍스트</li>
+                            </ul>
                         </div>
-                        <div class="spec-item">
-                            <div class="spec-icon">🖼️</div>
-                            <div class="spec-content">
-                                <h4>이미지 해상도</h4>
-                                <p>최소 300 DPI 이상 (고해상도 권장)</p>
+                        
+                        <div class="sample-card bad">
+                            <div class="sample-label bad-label">❌ 비권장 형식</div>
+                            <div class="sample-preview-img">
+                                <div class="mock-pdf bad-pdf">
+                                    <div class="pdf-header">카탈로그</div>
+                                    <div class="pdf-products-bad">
+                                        <div class="pdf-product-irregular">
+                                            <div class="product-name-top">LED 100</div>
+                                            <div class="product-img-small">💡</div>
+                                        </div>
+                                        <div class="pdf-product-text-heavy">
+                                            <div class="product-img-tiny">🔆</div>
+                                            <div class="product-specs-long">LED-SL-200 15W 4000K IP20 매입형 다운라이트...</div>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
+                            <h3>불규칙한 레이아웃</h3>
+                            <ul class="sample-features">
+                                <li>제품 배치가 일정하지 않음</li>
+                                <li>제품명이 이미지 위에 있음</li>
+                                <li>텍스트가 너무 작거나 많음</li>
+                            </ul>
                         </div>
-                        <div class="spec-item">
-                            <div class="spec-icon">📏</div>
-                            <div class="spec-content">
-                                <h4>제품 이미지 크기</h4>
-                                <p>최소 300×300px ~ 최대 1000×1000px</p>
+                        
+                        <div class="sample-card">
+                            <div class="sample-label tip-label">💡 팁</div>
+                            <div class="sample-tips">
+                                <h4>PDF 준비 체크리스트</h4>
+                                <div class="tip-item">
+                                    <span class="tip-icon">✓</span>
+                                    <span>A4 또는 Letter 사이즈</span>
+                                </div>
+                                <div class="tip-item">
+                                    <span class="tip-icon">✓</span>
+                                    <span>300 DPI 이상 해상도</span>
+                                </div>
+                                <div class="tip-item">
+                                    <span class="tip-icon">✓</span>
+                                    <span>제품당 충분한 여백</span>
+                                </div>
+                                <div class="tip-item">
+                                    <span class="tip-icon">✓</span>
+                                    <span>페이지당 3~9개 제품</span>
+                                </div>
+                                <div class="tip-item">
+                                    <span class="tip-icon">✓</span>
+                                    <span>흰 배경 + 검은 텍스트</span>
+                                </div>
                             </div>
-                        </div>
-                        <div class="spec-item">
-                            <div class="spec-icon">📄</div>
-                            <div class="spec-content">
-                                <h4>파일 크기</h4>
-                                <p>최대 50MB (페이지당 5MB 이하 권장)</p>
-                            </div>
+                            <a href="#" class="download-sample-btn" onclick="alert('샘플 PDF 다운로드 기능 준비 중입니다'); return false;">
+                                📥 샘플 PDF 다운로드
+                            </a>
                         </div>
                     </div>
-
-                    <div class="requirements-box">
-                        <h4>최적의 인식을 위한 권장사항</h4>
-                        <ul>
-                            <li>제품 이미지와 제품명이 세로로 배치된 레이아웃</li>
-                            <li>제품명은 이미지 바로 아래 150px 이내에 위치</li>
-                            <li>명확한 글꼴 사용 (최소 10pt 이상)</li>
-                            <li>흰색 또는 밝은 배경에 검은색 텍스트</li>
-                            <li>제품별로 충분한 여백 확보 (최소 30px)</li>
-                            <li>페이지당 3~9개 제품 배치 권장</li>
-                        </ul>
+                    
+                    <div class="custom-note">
+                        <div class="custom-icon">⚙️</div>
+                        <div class="custom-text">
+                            <h4>커스터마이징 가능</h4>
+                            <p>회사 로고, 색상, 레이아웃 등 모든 디자인을 귀사의 브랜드에 맞게 변경할 수 있습니다. <strong>유료 서비스 이용 시 커스터마이징 지원</strong></p>
+                        </div>
                     </div>
                 </div>
+                    
 
                 <div class="upload-zone" id="uploadZone">
                     <div class="upload-icon">📄</div>
@@ -144,10 +187,9 @@
         
         // 카카오톡 플로팅 버튼 클릭
         floatingBtn.addEventListener('click', function() {
-            const channelUrl = 'https://pf.kakao.com/_xnRdLn/chat'; // 실제 채널 ID로 교체
+            const channelUrl = 'https://pf.kakao.com/_xnRdLn/chat';
             window.open(channelUrl, '_blank', 'width=400,height=600');
         });
-        
     </script>
     <script src="dashboard.js"></script>
 </body>
