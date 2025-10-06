@@ -1,8 +1,8 @@
 """
 개선된 PDF 제품 추출기:
-1. 중복 제거 강화 (크기 기반)
-2. 전방향 텍스트 탐색
-3. 아이콘 제외 필터링
+1. Google Vision API 환경 변수 지원
+2. 중복 제거 강화
+3. 전방향 텍스트 탐색
 """
 
 import io
@@ -11,20 +11,39 @@ from PIL import Image, ImageDraw
 import fitz
 import os
 import re
+import json
 
 class ImageExtractor:
     def __init__(self):
         self.use_vision = False
         try:
             from google.cloud import vision
-            key_path = 'google-vision-key.json'
-            if os.path.exists(key_path):
-                os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = key_path
-                self.vision_client = vision.ImageAnnotatorClient()
-                self.use_vision = True
-                print("✓ Google Vision API 활성화")
-        except:
-            print("✗ Google Vision API 비활성화")
+            
+            # 환경 변수에서 JSON 읽기 (Railway 배포용)
+            credentials_json = os.environ.get('GOOGLE_APPLICATION_CREDENTIALS_JSON')
+            if credentials_json:
+                print("📌 환경 변수에서 Google Vision 인증 정보 로드 중...")
+                # JSON을 임시 파일로 저장
+                credentials_path = '/tmp/google-credentials.json'
+                with open(credentials_path, 'w') as f:
+                    f.write(credentials_json)
+                os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = credentials_path
+                print("✓ 환경 변수에서 인증 정보 로드 완료")
+            elif os.path.exists('google-vision-key.json'):
+                print("📌 로컬 파일에서 Google Vision 인증 정보 로드 중...")
+                os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = 'google-vision-key.json'
+                print("✓ 로컬 파일에서 인증 정보 로드 완료")
+            else:
+                print("⚠️ Google Vision 인증 파일 없음")
+                raise Exception("No credentials found")
+            
+            self.vision_client = vision.ImageAnnotatorClient()
+            self.use_vision = True
+            print("✓ Google Vision API 활성화됨\n")
+            
+        except Exception as e:
+            print(f"✗ Google Vision API 비활성화: {str(e)}\n")
+            self.use_vision = False
     
     def extract_from_pdf(self, pdf_bytes):
         results = []
@@ -42,6 +61,8 @@ class ImageExtractor:
                 print("🔍 Google Vision OCR 실행 중...\n")
                 all_pages_text_data = self._extract_all_text_once(pdf_document)
                 print("✓ OCR 완료\n")
+            else:
+                print("⚠️ Vision API 없이 진행 - 제품명 추출 제한적\n")
             
             for page_num in range(total_pages):
                 print(f"\n{'='*80}")
@@ -143,7 +164,7 @@ class ImageExtractor:
                 
                 print(f"페이지 {page_num + 1} OCR 전체 텍스트:")
                 print(f"{'-'*60}")
-                print(texts[0].description[:400])
+                print(texts[0].description[:500])
                 print(f"{'-'*60}\n")
                 
                 text_blocks = []
@@ -170,6 +191,8 @@ class ImageExtractor:
             
         except Exception as e:
             print(f"❌ Vision OCR 오류: {e}\n")
+            import traceback
+            traceback.print_exc()
             return {}
     
     def _extract_with_position_matching(self, page, pdf_document, text_blocks, page_width, page_height):
@@ -227,7 +250,6 @@ class ImageExtractor:
             is_duplicate = False
             
             for existing in filtered_images:
-                # 위치가 비슷하고 크기가 작으면 중복으로 간주
                 x_diff = abs(img['center_x'] - existing['center_x'])
                 y_diff = abs(img['center_y'] - existing['center_y'])
                 
@@ -256,26 +278,23 @@ class ImageExtractor:
                 import hashlib
                 img_hash = hashlib.md5(image_bytes).hexdigest()
                 if img_hash in seen_hashes:
-                    print(f"  이미지 {img_data['index'] + 1}: 중복 제외 (해시)")
+                    print(f"  이미지 {img_data['index'] + 1}: 중복 제외")
                     continue
                 seen_hashes.add(img_hash)
                 
-                # 크기 필터: 작은 아이콘 제외
+                # 크기 필터
                 if width < 150 or height < 150:
                     print(f"  이미지 {img_data['index'] + 1}: 너무 작음 ({width}x{height})")
                     continue
                 
-                # 너무 큰 이미지 제외
                 if width > 1500 or height > 1500:
                     print(f"  이미지 {img_data['index'] + 1}: 너무 큼 ({width}x{height})")
                     continue
                 
-                # 면적 필터
                 if area < 40000:
                     print(f"  이미지 {img_data['index'] + 1}: 면적 부족 ({area})")
                     continue
                 
-                # 비율 필터
                 aspect = width / height
                 if not (0.5 <= aspect <= 2.0):
                     print(f"  이미지 {img_data['index'] + 1}: 비율 부적합 ({aspect:.2f})")
@@ -283,13 +302,13 @@ class ImageExtractor:
                 
                 img_base64 = self._image_to_base64(pil_image)
                 
-                # 전방향 텍스트 찾기
+                # 텍스트 찾기
                 product_info = self._find_text_around_image(img_data, text_blocks, used_text_blocks)
                 
-                print(f"\n  ✓ 이미지 {img_data['index'] + 1} → 제품 추출:")
-                print(f"    크기: {width}x{height} (면적: {area})")
+                print(f"\n  ✓ 이미지 {img_data['index'] + 1} → 제품:")
+                print(f"    크기: {width}x{height}")
                 print(f"    제품명: {product_info['name']}")
-                print(f"    텍스트 블록: {len(product_info['used_indices'])}개")
+                print(f"    텍스트: {len(product_info['used_indices'])}개")
                 
                 products.append({
                     'name': product_info['name'],
@@ -314,13 +333,11 @@ class ImageExtractor:
                 'used_indices': []
             }
         
-        img_x = img_data['x']
-        img_y = img_data['y']
-        img_w = img_data['w']
-        img_h = img_data['h']
-        img_bottom = img_y + img_h
+        img_bottom = img_data['y'] + img_data['h']
         img_center_x = img_data['center_x']
         img_center_y = img_data['center_y']
+        img_w = img_data['w']
+        img_h = img_data['h']
         
         nearby_texts = []
         
@@ -328,29 +345,27 @@ class ImageExtractor:
             if idx in used_text_blocks:
                 continue
             
-            # 텍스트 위치
-            text_x = block['x']
-            text_y = block['y']
             text_center_x = block['center_x']
             text_center_y = block['center_y']
+            text_y = block['y']
             
-            # 아래쪽 텍스트 (우선순위 높음)
+            # 아래쪽 텍스트 (최우선)
             vertical_dist = text_y - img_bottom
             if 0 <= vertical_dist <= 200:
                 horizontal_dist = abs(text_center_x - img_center_x)
                 if horizontal_dist <= img_w * 0.8:
                     nearby_texts.append({
                         'text': block['text'],
-                        'priority': 1,  # 최우선
+                        'priority': 1,
                         'distance': vertical_dist,
-                        'x': text_x,
+                        'x': block['x'],
                         'y': text_y,
                         'index': idx
                     })
                     continue
             
             # 위쪽 텍스트
-            vertical_dist_above = img_y - (text_y + block['h'])
+            vertical_dist_above = img_data['y'] - (text_y + block['h'])
             if 0 <= vertical_dist_above <= 100:
                 horizontal_dist = abs(text_center_x - img_center_x)
                 if horizontal_dist <= img_w * 0.8:
@@ -358,13 +373,13 @@ class ImageExtractor:
                         'text': block['text'],
                         'priority': 2,
                         'distance': vertical_dist_above,
-                        'x': text_x,
+                        'x': block['x'],
                         'y': text_y,
                         'index': idx
                     })
                     continue
             
-            # 왼쪽/오른쪽 텍스트
+            # 옆쪽 텍스트
             if abs(text_center_y - img_center_y) <= img_h * 0.5:
                 horizontal_dist = abs(text_center_x - img_center_x)
                 if img_w * 0.5 <= horizontal_dist <= img_w * 1.5:
@@ -372,7 +387,7 @@ class ImageExtractor:
                         'text': block['text'],
                         'priority': 3,
                         'distance': horizontal_dist,
-                        'x': text_x,
+                        'x': block['x'],
                         'y': text_y,
                         'index': idx
                     })
@@ -385,77 +400,62 @@ class ImageExtractor:
                 'used_indices': []
             }
         
-        # 우선순위 → Y좌표 순으로 정렬
+        # 정렬: 우선순위 → Y좌표
         nearby_texts.sort(key=lambda t: (t['priority'], t['y'], t['x']))
         nearby_texts = nearby_texts[:12]
         
-        # 라인별 그룹화
+        # 라인 그룹화
         lines = []
         current_line = []
         last_y = -1
-        y_threshold = 30
         
         for item in nearby_texts:
-            if last_y < 0 or abs(item['y'] - last_y) < y_threshold:
+            if last_y < 0 or abs(item['y'] - last_y) < 30:
                 current_line.append(item)
             else:
                 if current_line:
                     current_line.sort(key=lambda t: t['x'])
-                    line_text = ' '.join([t['text'] for t in current_line])
-                    lines.append(line_text)
+                    lines.append(' '.join([t['text'] for t in current_line]))
                 current_line = [item]
             last_y = item['y']
         
         if current_line:
             current_line.sort(key=lambda t: t['x'])
-            line_text = ' '.join([t['text'] for t in current_line])
-            lines.append(line_text)
+            lines.append(' '.join([t['text'] for t in current_line]))
         
         # 제품명 = 첫 3개 라인
         product_name = ' '.join(lines[:3]) if len(lines) >= 3 else ' '.join(lines) if lines else f'제품 {img_data["index"] + 1}'
         
         # 스펙 추출
         specs = []
-        details = []
-        
         for line in lines[3:]:
-            clean_line = self._clean_text(line)
-            if re.search(r'\d+', clean_line) or any(unit in clean_line for unit in ['W', 'mm', 'V', 'K', 'lm', 'COB', 'SMD', 'IP', 'Ø']):
-                specs.append(clean_line)
-            else:
-                details.append(clean_line)
+            clean = self._clean_text(line)
+            if re.search(r'\d+', clean) or any(u in clean for u in ['W', 'mm', 'V', 'K', 'lm', 'COB', 'SMD', 'IP', 'Ø']):
+                specs.append(clean)
         
         # 사용된 텍스트 마킹
-        used_indices = [t['index'] for t in nearby_texts]
-        for idx in used_indices:
-            used_text_blocks.add(idx)
+        for t in nearby_texts:
+            used_text_blocks.add(t['index'])
         
         return {
             'name': self._clean_text(product_name),
             'specs': specs[:5],
-            'details': details[:3],
-            'used_indices': used_indices
+            'details': [],
+            'used_indices': [t['index'] for t in nearby_texts]
         }
     
     def _clean_text(self, text):
-        text = re.sub(r'\s+', ' ', text)
-        text = text.strip()
-        text = text.replace('_', ' ')
-        # 너무 긴 텍스트는 자르기
-        if len(text) > 100:
-            text = text[:100] + '...'
-        return text
+        text = re.sub(r'\s+', ' ', text).strip()
+        return text[:100] if len(text) > 100 else text
     
     def _image_to_base64(self, image):
         buffered = io.BytesIO()
         image = image.convert('RGB')
         
-        max_width = 400
-        if image.width > max_width:
-            ratio = max_width / image.width
+        if image.width > 400:
+            ratio = 400 / image.width
             new_height = int(image.height * ratio)
-            image = image.resize((max_width, new_height), Image.LANCZOS)
+            image = image.resize((400, new_height), Image.LANCZOS)
         
         image.save(buffered, format="JPEG", quality=90, optimize=True)
-        img_str = base64.b64encode(buffered.getvalue()).decode()
-        return f"data:image/jpeg;base64,{img_str}"
+        return f"data:image/jpeg;base64,{base64.b64encode(buffered.getvalue()).decode()}"
