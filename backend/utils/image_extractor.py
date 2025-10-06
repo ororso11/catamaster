@@ -1,8 +1,8 @@
 """
 개선된 PDF 제품 추출기:
-1. 이미지 위치 기반으로 텍스트 매칭
-2. Vision API 호출 최소화
-3. 중복 제거 강화
+1. 더 작은 이미지도 감지
+2. 더 넓은 텍스트 매칭 범위
+3. 그리드 레이아웃 최적화
 """
 
 import io
@@ -36,7 +36,7 @@ class ImageExtractor:
             print(f"📄 총 {total_pages}개 페이지 처리 시작")
             print(f"{'='*80}\n")
             
-            # Vision API 호출 (전체 한 번에)
+            # Vision API 호출
             all_pages_text_data = None
             if self.use_vision:
                 print("🔍 Google Vision OCR 실행 중...\n")
@@ -112,14 +112,9 @@ class ImageExtractor:
             img = Image.open(io.BytesIO(page_img_bytes)).convert('RGB')
             draw = ImageDraw.Draw(img)
             
-            # 텍스트 박스 그리기
             for i, block in enumerate(text_blocks):
                 x, y, w, h = block['x'], block['y'], block['w'], block['h']
-                
-                # 박스 그리기
                 draw.rectangle([x, y, x+w, y+h], outline='red', width=2)
-                
-                # 텍스트 표시
                 try:
                     text = block['text'][:15]
                     draw.text((x, max(0, y-15)), text, fill='blue')
@@ -145,7 +140,6 @@ class ImageExtractor:
                 pix = page.get_pixmap(matrix=mat)
                 img_bytes = pix.tobytes("png")
                 
-                # Vision API 호출
                 vision_image = vision.Image(content=img_bytes)
                 response = self.vision_client.text_detection(image=vision_image)
                 
@@ -154,13 +148,11 @@ class ImageExtractor:
                     all_text_data[page_num] = []
                     continue
                 
-                # 전체 텍스트 출력 (디버깅)
                 print(f"페이지 {page_num + 1} OCR 전체 텍스트:")
                 print(f"{'-'*60}")
                 print(texts[0].description[:300])
                 print(f"{'-'*60}\n")
                 
-                # 텍스트 블록 저장
                 text_blocks = []
                 for text in texts[1:]:
                     vertices = text.bounding_poly.vertices
@@ -228,7 +220,7 @@ class ImageExtractor:
         # 제품 추출
         products = []
         seen_hashes = set()
-        used_text_blocks = set()  # 이미 사용된 텍스트 블록 추적
+        used_text_blocks = set()
         
         for img_pos in image_positions:
             try:
@@ -248,23 +240,26 @@ class ImageExtractor:
                 width, height = pil_image.size
                 area = width * height
                 
-                # 필터링
-                if not (200 <= width <= 1200 and 200 <= height <= 1200):
+                # 🔧 필터링 완화 - 더 작은 이미지도 허용
+                if not (100 <= width <= 1500 and 100 <= height <= 1500):
                     print(f"  이미지 {img_pos['index'] + 1}: 크기 부적합 ({width}x{height})")
                     continue
-                if area < 60000:
+                
+                # 🔧 면적 제한 완화 - 30,000 픽셀 이상으로 낮춤
+                if area < 30000:
                     print(f"  이미지 {img_pos['index'] + 1}: 면적 부적합 ({area})")
                     continue
                 
+                # 🔧 비율 제한 완화
                 aspect = width / height
-                if not (0.6 <= aspect <= 1.8):
+                if not (0.5 <= aspect <= 2.0):
                     print(f"  이미지 {img_pos['index'] + 1}: 비율 부적합 ({aspect:.2f})")
                     continue
                 
                 # Base64 인코딩
                 img_base64 = self._image_to_base64(pil_image)
                 
-                # 텍스트 찾기 (사용되지 않은 텍스트만)
+                # 텍스트 찾기
                 product_info = self._find_text_below_image(img_pos, text_blocks, used_text_blocks)
                 
                 print(f"\n  ✓ 이미지 {img_pos['index'] + 1} → 제품 추출:")
@@ -287,7 +282,7 @@ class ImageExtractor:
         return products
     
     def _find_text_below_image(self, img_pos, text_blocks, used_text_blocks):
-        """이미지 바로 아래의 텍스트 찾기 (중복 방지)"""
+        """이미지 바로 아래의 텍스트 찾기"""
         if not text_blocks:
             return {
                 'name': f'제품 {img_pos["index"] + 1}',
@@ -300,22 +295,21 @@ class ImageExtractor:
         img_center_x = img_pos['center_x']
         img_width = img_pos['w']
         
-        # 이미지 바로 아래 텍스트 찾기 (거리 제한 강화)
+        # 🔧 탐색 범위 확대 - 이미지 아래 250px까지
         nearby_texts = []
         
         for idx, block in enumerate(text_blocks):
-            # 이미 사용된 텍스트는 건너뛰기
             if idx in used_text_blocks:
                 continue
             
-            # 세로 거리: 이미지 바로 아래 0~150px 이내만
+            # 🔧 세로 거리: 0~250px로 확대
             vertical_distance = block['y'] - img_bottom
-            if not (0 <= vertical_distance <= 150):
+            if not (0 <= vertical_distance <= 250):
                 continue
             
-            # 가로 거리: 이미지 중심 기준 이미지 너비의 60% 이내
+            # 🔧 가로 거리: 이미지 너비의 80%로 확대
             horizontal_distance = abs(block['center_x'] - img_center_x)
-            if horizontal_distance > img_width * 0.6:
+            if horizontal_distance > img_width * 0.8:
                 continue
             
             nearby_texts.append({
@@ -337,14 +331,14 @@ class ImageExtractor:
         # Y좌표로 정렬
         nearby_texts.sort(key=lambda t: (t['y'], t['x']))
         
-        # 상위 5개 텍스트만 사용 (너무 많이 가져오지 않도록)
-        nearby_texts = nearby_texts[:8]
+        # 🔧 상위 10개까지 확대
+        nearby_texts = nearby_texts[:10]
         
         # 라인별 그룹화
         lines = []
         current_line = []
         last_y = -1
-        y_threshold = 25
+        y_threshold = 30  # 🔧 라인 간격 허용 범위 확대
         
         for item in nearby_texts:
             if last_y < 0 or abs(item['y'] - last_y) < y_threshold:
@@ -362,7 +356,7 @@ class ImageExtractor:
             line_text = ' '.join([t['text'] for t in current_line])
             lines.append(line_text)
         
-        # 제품명 = 첫 2개 라인 합치기
+        # 제품명 = 첫 2개 라인
         product_name = ' '.join(lines[:2]) if len(lines) >= 2 else (lines[0] if lines else f'제품 {img_pos["index"] + 1}')
         
         # 스펙 / 상세 분리
